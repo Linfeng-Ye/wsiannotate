@@ -1,0 +1,81 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/BY63_R02.png_crop_168.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/BY63_R02.png_crop_168_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 0,
+      "left": 15,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "avif",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "avif",
+          "cq_level": 37,
+          "speed": 6,
+          "aq_mode": 3,
+          "tune": "ssim",
+          "sharpness": 1,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "c1b50691060f4424"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 0,
+      "left": 15,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "bilateral_filter",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "bilateral_filter",
+          "sigma_spatial": 0.8651188760680771,
+          "sigma_range": 0.054427782651343806,
+          "kernel_size": null
+        },
+        {
+          "name": "avif",
+          "cq_level": 31,
+          "speed": 6,
+          "aq_mode": 0,
+          "tune": "psnr",
+          "sharpness": 0,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "672c528553064761"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

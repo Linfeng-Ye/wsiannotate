@@ -1,0 +1,80 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/143_R03.png_crop_175.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/143_R03.png_crop_175_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 14,
+      "left": 11,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "small_shift",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "small_shift",
+          "dx_pixels": -0.9156127357501465,
+          "dy_pixels": 5.571287047188319
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 2.7,
+          "modular": 1,
+          "resampling": 2,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "5cbc61a9ae1346ca"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 14,
+      "left": 11,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "contrast_scale",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "contrast_scale",
+          "factor": 1.1567598776193595
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 2.3,
+          "modular": 0,
+          "resampling": -1,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "04ae9ac748124501"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

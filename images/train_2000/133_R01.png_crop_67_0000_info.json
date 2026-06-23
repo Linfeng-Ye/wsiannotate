@@ -1,0 +1,73 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/133_R01.png_crop_67.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/133_R01.png_crop_67_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 1,
+      "left": 12,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "brightness_shift",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "brightness_shift",
+          "delta": -0.19525129042282088
+        },
+        {
+          "name": "avif",
+          "cq_level": 37,
+          "speed": 6,
+          "aq_mode": 0,
+          "tune": "ssim",
+          "sharpness": 3,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "a4102491ae73436f"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 1,
+      "left": 12,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "hue_shift",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "hue_shift",
+          "degrees": -16.530478826756468
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 15.157855146061554,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

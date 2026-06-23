@@ -1,0 +1,107 @@
+{% extends "base.html" %}
+{% block title %}Responses{% endblock %}
+
+{% block content %}
+<h1>View Responses</h1>
+
+<form method="get" style="margin-bottom:20px;">
+    <label for="study_id"><strong>Study:</strong></label>
+    <select name="study_id" id="study_id" style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;">
+        <option value="">-- select --</option>
+        {% for s in studies %}
+        <option value="{{ s.id }}"{% if study and study.id == s.id %} selected{% endif %}>
+            {{ s.name }} ({{ s.mode }})
+        </option>
+        {% endfor %}
+    </select>
+    <button type="submit" class="btn btn-primary" style="margin-left:8px;">Filter</button>
+    {% if study %}
+    <a href="{% url 'iqa:export_csv' study.id %}" class="btn" style="margin-left:8px;background:#28a745;color:#fff;">
+        Export CSV
+    </a>
+    {% endif %}
+</form>
+
+{% if study %}
+    {% if study.mode == 'MOS' %}
+    <h2>MOS Responses for &ldquo;{{ study.name }}&rdquo;</h2>
+    {% if mos_data %}
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Order</th>
+                <th>Image</th>
+                <th>Reference</th>
+                <th>Score</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in mos_data %}
+            <tr>
+                <td>{{ r.user.username }}</td>
+                <td>{{ r.stimulus.order }}</td>
+                <td>{{ r.stimulus.image.fname }}</td>
+                <td>{% if r.stimulus.reference %}{{ r.stimulus.reference.fname }}{% else %}&mdash;{% endif %}</td>
+                <td>{{ r.score }}</td>
+                <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No responses yet.</p>
+    {% endif %}
+
+    {% else %}
+    <h2>2AFC Responses for &ldquo;{{ study.name }}&rdquo;</h2>
+    {% if pair_data %}
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Order</th>
+                <th>Image A</th>
+                <th>Image B</th>
+                <th>Choice</th>
+                <th>Display Choice</th>
+                <th>Swapped</th>
+                <th>Shown Image A</th>
+                <th>Shown Image B</th>
+                <th>Shown Ref A</th>
+                <th>Shown Ref B</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in pair_data %}
+            <tr>
+                <td>{{ r.user.username }}</td>
+                <td>{{ r.stimulus.order }}</td>
+                <td>{{ r.stimulus.image_a.fname }}</td>
+                <td>{{ r.stimulus.image_b.fname }}</td>
+                <td>{{ r.choice }}</td>
+                <td>{{ r.display_choice|default:"" }}</td>
+                <td>{{ r.was_swapped }}</td>
+                <td>{{ r.shown_image_a }}</td>
+                <td>{{ r.shown_image_b }}</td>
+                <td>{{ r.shown_reference_a }}</td>
+                <td>{{ r.shown_reference_b }}</td>
+                <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No responses yet.</p>
+    {% endif %}
+    {% endif %}
+{% else %}
+<p style="color:#777;">Select a study to view responses.</p>
+{% endif %}
+
+<div style="margin-top:24px;">
+    <a href="{% url 'iqa:home' %}" class="btn btn-primary">Back to Home</a>
+</div>
+{% endblock %}

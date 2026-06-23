@@ -1,0 +1,75 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/P13_R01.png_crop_61.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/P13_R01.png_crop_61_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 8,
+      "left": 0,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 5,
+      "distortions": [
+        {
+          "name": "gaussian_blur",
+          "sigma": 0.8254298990520723
+        },
+        {
+          "name": "brightness_shift",
+          "delta": -0.05858425622540436
+        },
+        {
+          "name": "pink_noise",
+          "sigma": 0.0667742886338554
+        },
+        {
+          "name": "rotation",
+          "angle_degrees": 2.937939545025597
+        },
+        {
+          "name": "webp",
+          "quality": 80,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 8,
+      "left": 0,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "brightness_shift",
+          "delta": -0.15843114485800128
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 10.637013935147191,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

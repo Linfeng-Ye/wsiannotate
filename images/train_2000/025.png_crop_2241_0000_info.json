@@ -1,0 +1,67 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/025.png_crop_2241.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/025.png_crop_2241_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 14,
+      "left": 3,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "hue_shift",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "hue_shift",
+          "degrees": -7.79466282307348
+        },
+        {
+          "name": "jpeg",
+          "quality": 88,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 14,
+      "left": 3,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "jpegxl",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 1.1,
+          "modular": 0,
+          "resampling": 2,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "73126d85fd8d4e27"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

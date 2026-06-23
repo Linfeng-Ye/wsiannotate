@@ -1,0 +1,29 @@
+{% extends "base.html" %}
+{% block title %}Bulk Create Users{% endblock %}
+
+{% block content %}
+<div style="max-width:500px;margin:40px auto;">
+    <h1>Bulk Create Users</h1>
+    <form method="post">
+        {% csrf_token %}
+        {% for field in form %}
+        <div style="margin-bottom:16px;">
+            <label for="{{ field.id_for_label }}" style="display:block;font-weight:600;margin-bottom:4px;">
+                {{ field.label }}
+            </label>
+            {{ field }}
+            {% if field.help_text %}
+            <small style="color:#666;">{{ field.help_text }}</small>
+            {% endif %}
+            {% for error in field.errors %}
+            <div style="color:#dc3545;font-size:13px;">{{ error }}</div>
+            {% endfor %}
+        </div>
+        {% endfor %}
+        <button type="submit" class="btn btn-primary">Create Users</button>
+    </form>
+    <div style="margin-top:20px;">
+        <a href="{% url 'iqa:home' %}">&larr; Back to Home</a>
+    </div>
+</div>
+{% endblock %}

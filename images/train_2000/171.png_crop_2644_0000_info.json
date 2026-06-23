@@ -1,0 +1,69 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/171.png_crop_2644.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/171.png_crop_2644_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 11,
+      "left": 3,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "bilateral_filter",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "bilateral_filter",
+          "sigma_spatial": 1.0988848756763459,
+          "sigma_range": 0.04111058505672032,
+          "kernel_size": null
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 7.269173918378347,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 11,
+      "left": 3,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "jpegxl",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 1.7,
+          "modular": 1,
+          "resampling": 1,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "d82419cccc124bb3"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

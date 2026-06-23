@@ -1,0 +1,73 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/167.png_crop_514.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/167.png_crop_514_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 5,
+      "left": 4,
+      "size": 256
+    },
+    "category": "noise",
+    "distortion_type": "pink_noise",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "pink_noise",
+          "sigma": 0.011695302758448545
+        },
+        {
+          "name": "avif",
+          "cq_level": 34,
+          "speed": 6,
+          "aq_mode": 0,
+          "tune": "psnr",
+          "sharpness": 1,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "29bc3a6a0ef94a1c"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 5,
+      "left": 4,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "gaussian_blur",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "gaussian_blur",
+          "sigma": 1.2188215038155654
+        },
+        {
+          "name": "jpeg",
+          "quality": 40,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

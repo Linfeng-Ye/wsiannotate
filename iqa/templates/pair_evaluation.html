@@ -1,0 +1,284 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}2AFC Evaluation{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260622">
+<style>.container { max-width: none; padding: 8px 12px; }</style>
+{% endblock %}
+
+{% block content %}
+<div class="sizing-{{ study.image_sizing }}"
+     data-scale="{{ study.image_scale_factor }}"
+     {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
+
+{% if ref_mismatch_error %}
+<div class="eval-header">
+    <div class="eval-title">{{ study.name }}</div>
+    <div class="eval-progress">
+        {{ progress.done }} / {{ progress.total }}
+    </div>
+</div>
+<div class="eval-warning">
+    <strong>Shared-reference layout unavailable:</strong>
+    this pair has two different reference images
+    (Ref A = <code>{{ ref_a.fname }}</code>,
+    Ref B = <code>{{ ref_b.fname }}</code>),
+    so they cannot be collapsed into a single
+    reference in the middle.
+    <div style="margin-top:10px;">
+        <a class="btn btn-primary"
+           href="{% url 'iqa:pair_evaluation' study_id=study.id stimulus_id=stimulus.id %}?fallback=1">
+            Continue with classic layout
+        </a>
+    </div>
+</div>
+
+{% elif use_shared_ref %}
+<div class="eval-header">
+    <div class="eval-title">{{ study.name }}</div>
+    <div class="eval-progress">
+        {{ progress.done }} / {{ progress.total }}
+    </div>
+</div>
+
+{% if study.prompt %}
+<div class="eval-prompt">{{ study.prompt }}</div>
+{% endif %}
+
+{% if existing %}
+<div class="eval-warning">
+    You already chose Image {{ existing.choice }}
+    for this pair. Submitting again will overwrite
+    your previous response.
+</div>
+{% endif %}
+
+<div class="pair-shared-ref-layout">
+    <div class="image-panel">
+        <div class="image-label">Image A</div>
+        <div class="image-wrapper">
+            <img src="{{ img_a.fname.url }}"
+                 alt="Image A" class="eval-image">
+        </div>
+    </div>
+    {% if shared_ref %}
+    <div class="image-panel">
+        <div class="image-label">Reference</div>
+        <div class="image-wrapper">
+            <img src="{{ shared_ref.fname.url }}"
+                 alt="Reference image" class="eval-image">
+        </div>
+    </div>
+    {% endif %}
+    <div class="image-panel">
+        <div class="image-label">Image B</div>
+        <div class="image-wrapper">
+            <img src="{{ img_b.fname.url }}"
+                 alt="Image B" class="eval-image">
+        </div>
+    </div>
+</div>
+
+<div class="pair-choices pair-choices-centered">
+    <button type="button"
+            class="btn pair-btn pair-btn-a{% if existing_display_choice == 'A' %} active{% endif %}"
+            data-choice="A">
+        A
+    </button>
+    <button type="button"
+            class="btn pair-btn pair-btn-b{% if existing_display_choice == 'B' %} active{% endif %}"
+            data-choice="B">
+        B
+    </button>
+</div>
+
+<form id="eval-form" method="post"
+      action="{% url 'iqa:evaluation_submit' %}">
+    {% csrf_token %}
+    <input type="hidden" name="study_id"
+           value="{{ study.id }}">
+    <input type="hidden" name="stimulus_id"
+           value="{{ stimulus.id }}">
+    <input type="hidden" name="swap"
+           value="{% if swap %}1{% else %}0{% endif %}">
+    <input type="hidden" name="choice"
+           id="choice-input"
+           value="{% if existing_display_choice %}{{ existing_display_choice }}{% endif %}">
+    <div class="submit-section">
+        <button type="submit"
+                class="btn btn-primary submit-btn"
+                disabled>
+            Submit
+        </button>
+    </div>
+</form>
+
+{% else %}
+<div class="pair-page-layout">
+    <div class="pair-images-area">
+        {% if ref_a or ref_b %}
+        <div class="pair-image-row">
+            <div class="pair-row-label">Ref A</div>
+            <div class="pair-image-cell">
+            {% if ref_a %}
+                <div class="image-wrapper">
+                    <img src="{{ ref_a.fname.url }}"
+                         alt="Reference A" class="eval-image">
+                </div>
+            {% endif %}
+            </div>
+            <div class="pair-image-cell">
+            {% if ref_b %}
+                <div class="image-wrapper">
+                    <img src="{{ ref_b.fname.url }}"
+                         alt="Reference B" class="eval-image">
+                </div>
+            {% endif %}
+            </div>
+            <div class="pair-row-label">Ref B</div>
+        </div>
+        {% endif %}
+
+        <div class="pair-image-row">
+            <div class="pair-row-label">Tgt A</div>
+            <div class="pair-image-cell">
+                <div class="image-wrapper">
+                    <img src="{{ img_a.fname.url }}"
+                         alt="Image A" class="eval-image">
+                </div>
+            </div>
+            <div class="pair-image-cell">
+                <div class="image-wrapper">
+                    <img src="{{ img_b.fname.url }}"
+                         alt="Image B" class="eval-image">
+                </div>
+            </div>
+            <div class="pair-row-label">Tgt B</div>
+        </div>
+    </div>
+
+    <div class="pair-controls">
+        <div class="eval-header">
+            <div class="eval-title">{{ study.name }}</div>
+            <div class="eval-progress">
+                {{ progress.done }} / {{ progress.total }}
+            </div>
+        </div>
+
+        {% if study.prompt %}
+        <div class="eval-prompt">{{ study.prompt }}</div>
+        {% endif %}
+
+        {% if existing %}
+        <div class="eval-warning">
+            You already chose Image {{ existing.choice }}
+            for this pair. Submitting again will overwrite
+            your previous response.
+        </div>
+        {% endif %}
+
+        <div class="pair-choices">
+            <button type="button"
+                    class="btn pair-btn pair-btn-a{% if existing_display_choice == 'A' %} active{% endif %}"
+                    data-choice="A">
+                A
+            </button>
+            <button type="button"
+                    class="btn pair-btn pair-btn-b{% if existing_display_choice == 'B' %} active{% endif %}"
+                    data-choice="B">
+                B
+            </button>
+        </div>
+
+        <form id="eval-form" method="post"
+              action="{% url 'iqa:evaluation_submit' %}">
+            {% csrf_token %}
+            <input type="hidden" name="study_id"
+                   value="{{ study.id }}">
+            <input type="hidden" name="stimulus_id"
+                   value="{{ stimulus.id }}">
+            <input type="hidden" name="swap"
+                   value="{% if swap %}1{% else %}0{% endif %}">
+            <input type="hidden" name="choice"
+                   id="choice-input"
+                   value="{% if existing_display_choice %}{{ existing_display_choice }}{% endif %}">
+            <div class="submit-section">
+                <button type="submit"
+                        class="btn btn-primary submit-btn"
+                        disabled>
+                    Submit
+                </button>
+            </div>
+        </form>
+    </div>
+</div>
+{% endif %}
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if not ref_mismatch_error %}
+{% if study.zoom_enabled %}
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260622"></script>
+{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var wrap = document.querySelector('[data-scale]');
+    if (wrap && wrap.classList.contains('sizing-scaled')) {
+        var factor = parseFloat(wrap.dataset.scale) || 1;
+        document.querySelectorAll('.eval-image').forEach(function(img) {
+            function apply() {
+                img.style.width = (img.naturalWidth * factor) + 'px';
+                img.style.height = (img.naturalHeight * factor) + 'px';
+            }
+            if (img.complete) apply();
+            else img.addEventListener('load', apply);
+        });
+    }
+
+    var pairBtns = document.querySelectorAll('.pair-btn');
+    var hidden = document.getElementById('choice-input');
+    var submit = document.querySelector('.submit-btn');
+
+    if (hidden.value) submit.disabled = false;
+
+    pairBtns.forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            pairBtns.forEach(function(b) { b.classList.remove('active'); });
+            btn.classList.add('active');
+            hidden.value = btn.dataset.choice;
+            submit.disabled = false;
+        });
+    });
+
+    document.addEventListener('keydown', function(e) {
+        var key = e.key.toUpperCase();
+        if (key === 'A' || e.key === '1') {
+            document.querySelector(
+                '.pair-btn[data-choice="A"]'
+            ).click();
+        } else if (key === 'B' || e.key === '2') {
+            document.querySelector(
+                '.pair-btn[data-choice="B"]'
+            ).click();
+        } else if (e.key === 'Enter'
+                   && !submit.disabled) {
+            e.preventDefault();
+            submit.click();
+        }
+    });
+
+    document.getElementById('eval-form').addEventListener('submit', function(e) {
+        if (!hidden.value) {
+            e.preventDefault();
+            return;
+        }
+        submit.disabled = true;
+        submit.textContent = 'Submitting\u2026';
+    });
+});
+</script>
+{% endif %}
+{% endblock %}

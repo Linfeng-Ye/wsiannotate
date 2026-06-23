@@ -1,0 +1,71 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/PP61.png_crop_2138.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/PP61.png_crop_2138_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 13,
+      "left": 2,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "rotation",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "rotation",
+          "angle_degrees": 1.4430892956159473
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 13,
+      "left": 2,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "downsample_upsample",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "downsample_then_upsample",
+          "scale": 0.8094338915549384,
+          "down_mode": "bilinear",
+          "up_mode": "bicubic"
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 2.2,
+          "modular": 0,
+          "resampling": -1,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "dd7105c31ed9495c"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

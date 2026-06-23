@@ -1,0 +1,127 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/134_R02.png_crop_113.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/134_R02.png_crop_113_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 12,
+      "left": 13,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "hue_shift",
+          "degrees": -6.246662720039362
+        },
+        {
+          "name": "jpeg",
+          "quality": 89,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 12,
+      "left": 13,
+      "size": 256
+    },
+    "category": "neural",
+    "distortion_type": "superres",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "super_resolution_artifact",
+          "backend": "trained_checkpoint",
+          "requested_task": [
+            "superres"
+          ],
+          "selected": {
+            "name": "trained_cnn_distortion",
+            "task": "superres",
+            "run_name": "superres_run_9",
+            "run_dir": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/superres_run_9",
+            "source_type": "directory",
+            "source_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/superres_run_9",
+            "config_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/superres_run_9/config.json",
+            "checkpoint_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/superres_run_9/checkpoints/final.pt",
+            "checkpoint_name": "final.pt",
+            "checkpoint_policy": "always_final_checkpoint",
+            "precision": "fp32",
+            "prefer_torchscript": false,
+            "sample_per_image": false,
+            "corruption_backend": "train_cnn_distortion_corrected.apply_input_corruption",
+            "checkpoint_default_corruption": {
+              "task": "superres",
+              "input_corruption": "downsampling",
+              "noise_sigma": 0.08,
+              "num_layers": 4,
+              "base_channels": 24,
+              "max_channels": 128,
+              "upsample_mode": "bilinear",
+              "norm": "instance",
+              "residual_output": true,
+              "residual_scale": 0.2
+            },
+            "wrapper_model_input": {
+              "spatial_mode": "bad_kernel",
+              "downscale": 2,
+              "blur_sigma": 1.2023185146784956,
+              "input_noise_std": 0.013112475394071146,
+              "weight_mode": "normal",
+              "uses_checkpoint_default_input": false
+            },
+            "wrapper_output": {},
+            "input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "default_model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "output_shape": [
+              1,
+              3,
+              256,
+              256
+            ]
+          }
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 14.20471224158046,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

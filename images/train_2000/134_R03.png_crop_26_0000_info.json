@@ -1,0 +1,88 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/134_R03.png_crop_26.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/134_R03.png_crop_26_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 14,
+      "left": 13,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "small_shift",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "small_shift",
+          "dx_pixels": -1.782530101315024,
+          "dy_pixels": -1.3780572239867919
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 1.8,
+          "modular": 1,
+          "resampling": -1,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "ac090b0d4bf94ab3"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 14,
+      "left": 13,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 3,
+      "distortions": [
+        {
+          "name": "downsample_then_upsample",
+          "scale": 0.8185107499448604,
+          "down_mode": "bilinear",
+          "up_mode": "bicubic"
+        },
+        {
+          "name": "hue_shift",
+          "degrees": -12.171056718194908
+        },
+        {
+          "name": "avif",
+          "cq_level": 28,
+          "speed": 6,
+          "aq_mode": 0,
+          "tune": "psnr",
+          "sharpness": 1,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "b05e2b3a4cc743a1"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

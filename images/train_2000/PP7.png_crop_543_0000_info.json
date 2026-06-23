@@ -1,0 +1,86 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/PP7.png_crop_543.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/PP7.png_crop_543_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 8,
+      "left": 2,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "downsample_upsample",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "downsample_then_upsample",
+          "scale": 0.8604038148017411,
+          "down_mode": "bilinear",
+          "up_mode": "bicubic"
+        },
+        {
+          "name": "avif",
+          "cq_level": 32,
+          "speed": 6,
+          "aq_mode": 1,
+          "tune": "ssim",
+          "sharpness": 3,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "01ee84d340574ba5"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 8,
+      "left": 2,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "small_shift",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "small_shift",
+          "dx_pixels": 1.304031239035262,
+          "dy_pixels": -0.40557376647449317
+        },
+        {
+          "name": "avif",
+          "cq_level": 23,
+          "speed": 6,
+          "aq_mode": 2,
+          "tune": "ssim",
+          "sharpness": 0,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "2504aac5aad1469c"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

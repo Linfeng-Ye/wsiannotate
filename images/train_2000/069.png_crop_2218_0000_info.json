@@ -1,0 +1,59 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/069.png_crop_2218.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/069.png_crop_2218_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 6,
+      "left": 15,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "webp",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "webp",
+          "quality": 55,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 6,
+      "left": 15,
+      "size": 256
+    },
+    "category": "noise",
+    "distortion_type": "uniform_white_noise",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "uniform_white_noise",
+          "amplitude": 0.033798462064240954
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 10.129867754648004,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

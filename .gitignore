@@ -1,0 +1,29 @@
+# Requested: keep image assets under images/ out of GitHub.
+/images/**/*.png
+/images/**/*.jpg
+/images/**/*.jpeg
+/images/**/*.gif
+/images/**/*.webp
+/images/**/*.bmp
+/images/**/*.tif
+/images/**/*.tiff
+/images/**/*.avif
+
+# Local environment and credentials.
+.env
+local_passwd.txt
+
+# Runtime data.
+db.sqlite3
+/media/
+/tmp/
+
+# Python artifacts.
+__pycache__/
+*.py[cod]
+.venv/
+
+# Codex/session metadata.
+/.agents/
+/.codex/
+/.git/

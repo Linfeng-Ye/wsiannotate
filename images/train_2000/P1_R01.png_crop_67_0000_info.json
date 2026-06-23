@@ -1,0 +1,71 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/P1_R01.png_crop_67.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/P1_R01.png_crop_67_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 8,
+      "left": 16,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "contrast_scale",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "contrast_scale",
+          "factor": 1.076697431835919
+        },
+        {
+          "name": "jpeg",
+          "quality": 57,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 8,
+      "left": 16,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 4,
+      "distortions": [
+        {
+          "name": "blue_noise",
+          "sigma": 0.047275789702007055
+        },
+        {
+          "name": "hue_shift",
+          "degrees": -10.877932669752365
+        },
+        {
+          "name": "rotation",
+          "angle_degrees": 1.5620628967666956
+        },
+        {
+          "name": "jpeg",
+          "quality": 56,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

@@ -1,0 +1,73 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/PP27.png_crop_475.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/PP27.png_crop_475_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 6,
+      "left": 11,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "gaussian_blur",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "gaussian_blur",
+          "sigma": 1.2274199823507166
+        },
+        {
+          "name": "jpeg",
+          "quality": 38,
+          "subsampling": 2
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 6,
+      "left": 11,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "rotation",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "rotation",
+          "angle_degrees": -2.758983494693593
+        },
+        {
+          "name": "avif",
+          "cq_level": 25,
+          "speed": 6,
+          "aq_mode": 2,
+          "tune": "ssim",
+          "sharpness": 0,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "c536269bae204196"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

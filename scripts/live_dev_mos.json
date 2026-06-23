@@ -1,0 +1,212 @@
+{
+  "name": "LIVE Dev Test (MOS)",
+  "mode": "MOS",
+  "prompt": "Rate the quality of the test image compared to the reference.",
+  "scale_min": 1,
+  "scale_max": 5,
+  "scale_min_label": "Bad",
+  "scale_max_label": "Excellent",
+  "sampler": "random",
+  "stimuli": [
+    {
+      "image": "images/live_dev/fastfading/img100.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img121.png",
+      "reference": "images/live_dev/refimgs/manfishing.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img125.png",
+      "reference": "images/live_dev/refimgs/manfishing.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img126.png",
+      "reference": "images/live_dev/refimgs/sailing3.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img144.png",
+      "reference": "images/live_dev/refimgs/sailing4.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img21.png",
+      "reference": "images/live_dev/refimgs/paintedhouse.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img32.png",
+      "reference": "images/live_dev/refimgs/bikes.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img59.png",
+      "reference": "images/live_dev/refimgs/plane.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img81.png",
+      "reference": "images/live_dev/refimgs/womanhat.png"
+    },
+    {
+      "image": "images/live_dev/fastfading/img85.png",
+      "reference": "images/live_dev/refimgs/womanhat.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img115.png",
+      "reference": "images/live_dev/refimgs/caps.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img116.png",
+      "reference": "images/live_dev/refimgs/paintedhouse.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img128.png",
+      "reference": "images/live_dev/refimgs/dancers.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img130.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img29.png",
+      "reference": "images/live_dev/refimgs/rapids.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img70.png",
+      "reference": "images/live_dev/refimgs/caps.png"
+    },
+    {
+      "image": "images/live_dev/gblur/img86.png",
+      "reference": "images/live_dev/refimgs/plane.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img122.png",
+      "reference": "images/live_dev/refimgs/caps.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img129.png",
+      "reference": "images/live_dev/refimgs/bikes.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img130.png",
+      "reference": "images/live_dev/refimgs/sailing3.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img136.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img143.png",
+      "reference": "images/live_dev/refimgs/manfishing.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img158.png",
+      "reference": "images/live_dev/refimgs/parrots.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img195.png",
+      "reference": "images/live_dev/refimgs/womanhat.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img216.png",
+      "reference": "images/live_dev/refimgs/building2.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img220.png",
+      "reference": "images/live_dev/refimgs/plane.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img34.png",
+      "reference": "images/live_dev/refimgs/studentsculpture.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img38.png",
+      "reference": "images/live_dev/refimgs/sailing3.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img41.png",
+      "reference": "images/live_dev/refimgs/building2.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img43.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img58.png",
+      "reference": "images/live_dev/refimgs/plane.png"
+    },
+    {
+      "image": "images/live_dev/jp2k/img8.png",
+      "reference": "images/live_dev/refimgs/stream.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img106.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img137.png",
+      "reference": "images/live_dev/refimgs/stream.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img151.png",
+      "reference": "images/live_dev/refimgs/house.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img156.png",
+      "reference": "images/live_dev/refimgs/ocean.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img50.png",
+      "reference": "images/live_dev/refimgs/house.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img71.png",
+      "reference": "images/live_dev/refimgs/sailing1.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img74.png",
+      "reference": "images/live_dev/refimgs/flowersonih35.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img77.png",
+      "reference": "images/live_dev/refimgs/bikes.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img80.png",
+      "reference": "images/live_dev/refimgs/carnivaldolls.png"
+    },
+    {
+      "image": "images/live_dev/jpeg/img93.png",
+      "reference": "images/live_dev/refimgs/manfishing.png"
+    },
+    {
+      "image": "images/live_dev/wn/img1.png",
+      "reference": "images/live_dev/refimgs/monarch.png"
+    },
+    {
+      "image": "images/live_dev/wn/img116.png",
+      "reference": "images/live_dev/refimgs/rapids.png"
+    },
+    {
+      "image": "images/live_dev/wn/img24.png",
+      "reference": "images/live_dev/refimgs/coinsinfountain.png"
+    },
+    {
+      "image": "images/live_dev/wn/img46.png",
+      "reference": "images/live_dev/refimgs/buildings.png"
+    },
+    {
+      "image": "images/live_dev/wn/img5.png",
+      "reference": "images/live_dev/refimgs/sailing3.png"
+    },
+    {
+      "image": "images/live_dev/wn/img86.png",
+      "reference": "images/live_dev/refimgs/sailing4.png"
+    },
+    {
+      "image": "images/live_dev/wn/img89.png",
+      "reference": "images/live_dev/refimgs/sailing3.png"
+    },
+    {
+      "image": "images/live_dev/wn/img9.png",
+      "reference": "images/live_dev/refimgs/cemetry.png"
+    }
+  ]
+}

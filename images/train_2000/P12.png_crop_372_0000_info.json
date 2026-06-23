@@ -1,0 +1,72 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/P12.png_crop_372.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/P12.png_crop_372_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 13,
+      "left": 14,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "gaussian_blur",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "gaussian_blur",
+          "sigma": 0.5305716981398981
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 13,
+      "left": 14,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "homography_warp",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "homography_warp",
+          "H": null,
+          "perspective_strength": -0.00913634076917973
+        },
+        {
+          "name": "avif",
+          "cq_level": 31,
+          "speed": 6,
+          "aq_mode": 3,
+          "tune": "psnr",
+          "sharpness": 2,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "9a388a2011e444be"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

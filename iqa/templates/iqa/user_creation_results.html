@@ -1,0 +1,28 @@
+{% extends "base.html" %}
+{% block title %}Created Users{% endblock %}
+
+{% block content %}
+<div style="max-width:500px;margin:40px auto;">
+    <h1>Created Users</h1>
+    {% if created_users %}
+    <table>
+        <thead>
+            <tr><th>Username</th><th>Password</th></tr>
+        </thead>
+        <tbody>
+        {% for username, password in created_users %}
+            <tr><td>{{ username }}</td><td><code>{{ password }}</code></td></tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    <p style="color:#dc3545;font-size:13px;">
+        Save these credentials now &mdash; passwords cannot be recovered later.
+    </p>
+    {% else %}
+    <p>No users were created.</p>
+    {% endif %}
+    <div style="margin-top:20px;">
+        <a href="{% url 'iqa:home' %}">&larr; Back to Home</a>
+    </div>
+</div>
+{% endblock %}

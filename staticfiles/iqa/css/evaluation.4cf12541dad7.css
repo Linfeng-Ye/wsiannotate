@@ -1,0 +1,394 @@
+/* IQA evaluation page styles — neutral grey background for images */
+
+html,
+body {
+    background: #2b2b2b;
+    color: #e6e6e6;
+}
+
+.eval-header {
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    margin-bottom: 12px;
+}
+
+.eval-title {
+    font-size: 22px;
+    font-weight: 700;
+}
+
+.eval-progress {
+    font-size: 14px;
+    color: #e6e6e6;
+    background: #3a3a3a;
+    padding: 4px 14px;
+    border-radius: 20px;
+}
+
+.eval-prompt {
+    background: #1f1f1f;
+    border: 1px solid #4a4a4a;
+    border-radius: 8px;
+    padding: 12px 16px;
+    margin-bottom: 16px;
+    font-size: 20px;
+    color: #f0f0f0;
+}
+
+.eval-warning {
+    background: #3a2f12;
+    color: #ffe2a3;
+    padding: 10px 16px;
+    border-radius: 6px;
+    border: 1px solid #6a5320;
+    margin-bottom: 16px;
+    font-size: 14px;
+}
+
+/* ---------- Image panels ---------- */
+
+.image-panel {
+    flex: 1;
+    text-align: center;
+}
+
+.image-label {
+    font-weight: 600;
+    font-size: 14px;
+    color: #cfcfcf;
+    margin-bottom: 6px;
+    text-align: center;
+}
+
+.image-wrapper {
+    background: #808080;
+    border-radius: 8px;
+    padding: 8px;
+    display: flex;
+    align-items: center;
+    justify-content: center;
+}
+
+.eval-image {
+    display: block;
+    border-radius: 4px;
+}
+
+/* --- Sizing mode: fit_screen (default) --- */
+.sizing-fit .eval-image {
+    max-width: 100%;
+    max-height: 70vh;
+}
+
+/* --- Sizing mode: original --- */
+.sizing-original .image-wrapper {
+    display: inline-flex;
+    overflow: auto;
+}
+.sizing-original .eval-image {
+    max-width: none;
+    max-height: none;
+}
+.sizing-original .mos-layout .image-panel {
+    max-width: none;
+}
+
+/* --- Sizing mode: scaled --- */
+.sizing-scaled .image-wrapper {
+    display: inline-flex;
+}
+.sizing-scaled .mos-layout .image-panel {
+    max-width: none;
+}
+
+/* ---------- MOS layout ---------- */
+
+.mos-layout {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.mos-layout .image-panel {
+    max-width: 50%;
+}
+
+.mos-layout .image-panel:only-child {
+    max-width: 70%;
+}
+
+/* ---------- Rating scale ---------- */
+
+.rating-section {
+    max-width: 600px;
+    margin: 0 auto 20px;
+}
+
+.scale-labels {
+    display: flex;
+    justify-content: space-between;
+    font-size: 13px;
+    color: #bdbdbd;
+    margin-bottom: 6px;
+}
+
+.scale-buttons {
+    display: flex;
+    gap: 0;
+}
+
+.scale-btn {
+    flex: 1;
+    padding: 12px 0;
+    border: 1px solid #555;
+    background: #1f1f1f;
+    color: #e6e6e6;
+    font-size: 16px;
+    font-weight: 600;
+    cursor: pointer;
+    transition: background 0.15s, color 0.15s;
+    border-right: none;
+}
+
+.scale-btn:first-child {
+    border-radius: 8px 0 0 8px;
+}
+
+.scale-btn:last-child {
+    border-radius: 0 8px 8px 0;
+    border-right: 1px solid #555;
+}
+
+.scale-btn:hover {
+    background: #2a2a2a;
+}
+
+.scale-btn.active {
+    background: #447e9b;
+    color: #fff;
+    border-color: #366a84;
+}
+
+/* ---------- MOS textbox input ---------- */
+
+.score-textbox-area {
+    text-align: center;
+}
+
+.score-textbox-label {
+    display: block;
+    font-size: 16px;
+    font-weight: 600;
+    color: #e6e6e6;
+    margin-bottom: 8px;
+}
+
+.score-textbox {
+    width: 220px;
+    padding: 14px 18px;
+    font-size: 28px;
+    font-weight: 600;
+    text-align: center;
+    background: #1f1f1f;
+    color: #ffffff;
+    border: 2px solid #666;
+    border-radius: 8px;
+    outline: none;
+    transition: border-color 0.15s;
+    appearance: textfield;
+    -moz-appearance: textfield;
+}
+
+.score-textbox::-webkit-outer-spin-button,
+.score-textbox::-webkit-inner-spin-button {
+    -webkit-appearance: none;
+    margin: 0;
+}
+
+.score-textbox:focus {
+    border-color: #447e9b;
+    box-shadow: 0 0 0 3px rgba(68, 126, 155, .25);
+}
+
+.score-error {
+    min-height: 20px;
+    margin-top: 6px;
+    font-size: 14px;
+    color: #ff6b5a;
+}
+
+/* ---------- 2AFC layout ---------- */
+
+.pair-page-layout {
+    display: flex;
+    gap: 24px;
+    align-items: flex-start;
+}
+
+.pair-images-area {
+    display: flex;
+    flex-direction: column;
+    gap: 4px;
+    flex: 1;
+    min-width: 0;
+}
+
+.pair-image-row {
+    display: flex;
+    gap: 4px;
+    align-items: center;
+}
+
+.pair-image-cell {
+    flex: 1;
+    min-width: 0;
+}
+
+.pair-image-cell .image-wrapper {
+    width: 100%;
+}
+
+.pair-row-label {
+    font-size: 13px;
+    font-weight: 600;
+    color: #bdbdbd;
+    width: 28px;
+    text-align: center;
+    flex-shrink: 0;
+}
+
+.pair-controls {
+    flex-shrink: 0;
+    width: 320px;
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+}
+
+.pair-controls .eval-header {
+    margin-bottom: 0;
+}
+
+.pair-controls .eval-prompt {
+    margin-bottom: 0;
+}
+
+.pair-controls .eval-warning {
+    margin-bottom: 0;
+}
+
+.pair-choices {
+    display: flex;
+    gap: 8px;
+}
+
+.pair-btn {
+    width: 48%;
+    padding: 10px;
+    font-size: 15px;
+    font-weight: 600;
+    border: 2px solid #555;
+    background: #1f1f1f;
+    color: #e6e6e6;
+    transition: all 0.15s;
+    border-radius: 8px;
+    cursor: pointer;
+}
+
+.pair-btn:hover {
+    border-color: #7a7a7a;
+    background: #2a2a2a;
+}
+
+.pair-btn-a.active {
+    background: #447e9b;
+    color: #fff;
+    border-color: #366a84;
+}
+
+.pair-btn-b.active {
+    /* background: #7b5ea7; 
+    border-color: #654b8a;
+	 * */
+    background: #447e9b;
+    color: #fff;
+    border-color: #366a84;
+}
+
+.pair-controls .submit-section {
+    margin: 0;
+}
+
+/* ---------- 2AFC shared-reference layout ---------- */
+
+.pair-shared-ref-layout {
+    display: flex;
+    gap: 24px;
+    justify-content: center;
+    margin-bottom: 24px;
+}
+
+.pair-shared-ref-layout .image-panel {
+    max-width: 33%;
+}
+
+.sizing-original .pair-shared-ref-layout .image-panel,
+.sizing-scaled .pair-shared-ref-layout .image-panel {
+    max-width: none;
+}
+
+.pair-choices-centered {
+    max-width: 400px;
+    margin: 0 auto 12px;
+}
+
+.pair-choices-centered .pair-btn {
+    width: 50%;
+    padding: 12px;
+    font-size: 16px;
+}
+
+/* ---------- Zoom overlay ---------- */
+
+.zoom-overlay {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    background-repeat: no-repeat;
+    border: 2px solid rgba(255, 255, 255, 0.8);
+    border-radius: 4px;
+    box-shadow: 0 2px 8px rgba(0, 0, 0, 0.3);
+    z-index: 10;
+    image-rendering: pixelated;
+    image-rendering: crisp-edges;
+    -ms-interpolation-mode: nearest-neighbor;
+}
+
+.zoom-source-rect {
+    position: absolute;
+    display: none;
+    pointer-events: none;
+    border: 1px solid #00e000;
+    box-sizing: border-box;
+    z-index: 9;
+}
+
+/* ---------- Submit ---------- */
+
+.submit-section {
+    text-align: center;
+    margin: 20px 0 40px;
+}
+
+.submit-btn {
+    min-width: 160px;
+    padding: 12px 32px;
+    font-size: 16px;
+}
+
+.submit-btn:disabled {
+    background: #aaa;
+    cursor: not-allowed;
+}

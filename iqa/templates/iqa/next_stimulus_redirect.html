@@ -1,0 +1,24 @@
+{% extends "base.html" %}
+{% block title %}Loading...{% endblock %}
+
+{% block extra_head %}
+<style>
+    html, body { background: #2b2b2b; color: #e6e6e6; }
+</style>
+{% endblock %}
+
+{% block content %}
+<div style="text-align:center;margin-top:80px;">
+    <p>Loading next stimulus&hellip;</p>
+    <form id="redirect-form" method="post" action="{% url 'iqa:next_stimulus' %}">
+        {% csrf_token %}
+        <input type="hidden" name="study_id" value="{{ study.id }}">
+    </form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script>
+document.getElementById('redirect-form').submit();
+</script>
+{% endblock %}

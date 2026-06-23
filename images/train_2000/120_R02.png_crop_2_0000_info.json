@@ -1,0 +1,72 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/120_R02.png_crop_2.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/120_R02.png_crop_2_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 2,
+      "left": 9,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "downsample_upsample",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "downsample_then_upsample",
+          "scale": 0.8854630707283464,
+          "down_mode": "bilinear",
+          "up_mode": "bicubic"
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 1.4,
+          "modular": 1,
+          "resampling": 1,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "7b24e4dd098442a9"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 2,
+      "left": 9,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "homography_warp",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "homography_warp",
+          "H": null,
+          "perspective_strength": 0.0009170246601405089
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

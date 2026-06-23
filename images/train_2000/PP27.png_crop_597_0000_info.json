@@ -1,0 +1,62 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/PP27.png_crop_597.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/PP27.png_crop_597_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 2,
+      "left": 9,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "downsample_upsample",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "downsample_then_upsample",
+          "scale": 0.8824116871825554,
+          "down_mode": "bilinear",
+          "up_mode": "bicubic"
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 2,
+      "left": 9,
+      "size": 256
+    },
+    "category": "noise",
+    "distortion_type": "gaussian_colored_noise",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "gaussian_colored_noise",
+          "sigma": 0.007957472337973904,
+          "beta": 0.5957772967868618
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

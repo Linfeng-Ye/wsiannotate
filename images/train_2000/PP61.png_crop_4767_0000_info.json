@@ -1,0 +1,136 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/PP61.png_crop_4767.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/PP61.png_crop_4767_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 7,
+      "left": 9,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 3,
+      "distortions": [
+        {
+          "name": "blue_noise",
+          "sigma": 0.12762348816115526
+        },
+        {
+          "name": "denoise_artifact",
+          "backend": "trained_checkpoint",
+          "requested_task": [
+            "denoise"
+          ],
+          "selected": {
+            "name": "trained_cnn_distortion",
+            "task": "denoise",
+            "run_name": "denoise_run_10",
+            "run_dir": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_10",
+            "source_type": "directory",
+            "source_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_10",
+            "config_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_10/config.json",
+            "checkpoint_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_10/checkpoints/final.pt",
+            "checkpoint_name": "final.pt",
+            "checkpoint_policy": "always_final_checkpoint",
+            "precision": "fp32",
+            "prefer_torchscript": false,
+            "sample_per_image": false,
+            "corruption_backend": "train_cnn_distortion_corrected.apply_input_corruption",
+            "checkpoint_default_corruption": {
+              "task": "denoise",
+              "input_corruption": "gaussian",
+              "noise_sigma": 0.08,
+              "num_layers": 4,
+              "base_channels": 32,
+              "max_channels": 128,
+              "upsample_mode": "bilinear",
+              "norm": "none",
+              "residual_output": true,
+              "residual_scale": 0.15
+            },
+            "wrapper_model_input": {
+              "noise_type": "training",
+              "noise_std": 0.05,
+              "input_blur_sigma": 0.0,
+              "weight_mode": "perturbed",
+              "uses_checkpoint_default_input": true
+            },
+            "wrapper_output": {},
+            "input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "default_model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "output_shape": [
+              1,
+              3,
+              256,
+              256
+            ]
+          }
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 2.1,
+          "modular": 0,
+          "resampling": 2,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "d807b48ba5fb49ee"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 7,
+      "left": 9,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "saturation_scale",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "saturation_scale",
+          "factor": 0.7629511960998374
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

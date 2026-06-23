@@ -1,0 +1,308 @@
+{
+  "name": "LIVE Dev Test (2AFC)",
+  "mode": "2AFC",
+  "prompt": "Which image has better quality?",
+  "sampler": "random",
+  "stimuli": [
+    {
+      "image_a": "images/live_dev-2afc/fastfading/img1.png",
+      "image_b": "images/live_dev-2afc/fastfading/img5.png",
+      "reference_a": "images/live_dev-2afc/refimgs/coinsinfountain.png",
+      "reference_b": "images/live_dev-2afc/refimgs/coinsinfountain.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/fastfading/img100.png",
+      "image_b": "images/live_dev-2afc/jp2k/img83.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing1.png",
+      "reference_b": "images/live_dev-2afc/refimgs/caps.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/fastfading/img100.png",
+      "image_b": "images/live_dev-2afc/wn/img122.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing1.png",
+      "reference_b": "images/live_dev-2afc/refimgs/flowersonih35.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/fastfading/img17.png",
+      "image_b": "images/live_dev-2afc/fastfading/img54.png",
+      "reference_a": "images/live_dev-2afc/refimgs/dancers.png",
+      "reference_b": "images/live_dev-2afc/refimgs/building2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/gblur/img108.png",
+      "image_b": "images/live_dev-2afc/jp2k/img155.png",
+      "reference_a": "images/live_dev-2afc/refimgs/studentsculpture.png",
+      "reference_b": "images/live_dev-2afc/refimgs/woman.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/gblur/img128.png",
+      "image_b": "images/live_dev-2afc/wn/img114.png",
+      "reference_a": "images/live_dev-2afc/refimgs/dancers.png",
+      "reference_b": "images/live_dev-2afc/refimgs/lighthouse.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/gblur/img23.png",
+      "image_b": "images/live_dev-2afc/jp2k/img163.png",
+      "reference_a": "images/live_dev-2afc/refimgs/paintedhouse.png",
+      "reference_b": "images/live_dev-2afc/refimgs/building2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/gblur/img93.png",
+      "image_b": "images/live_dev-2afc/fastfading/img84.png",
+      "reference_a": "images/live_dev-2afc/refimgs/dancers.png",
+      "reference_b": "images/live_dev-2afc/refimgs/womanhat.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img10.png",
+      "image_b": "images/live_dev-2afc/jp2k/img150.png",
+      "reference_a": "images/live_dev-2afc/refimgs/woman.png",
+      "reference_b": "images/live_dev-2afc/refimgs/woman.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img105.png",
+      "image_b": "images/live_dev-2afc/wn/img75.png",
+      "reference_a": "images/live_dev-2afc/refimgs/monarch.png",
+      "reference_b": "images/live_dev-2afc/refimgs/parrots.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img124.png",
+      "image_b": "images/live_dev-2afc/fastfading/img106.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/lighthouse2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img126.png",
+      "image_b": "images/live_dev-2afc/wn/img116.png",
+      "reference_a": "images/live_dev-2afc/refimgs/rapids.png",
+      "reference_b": "images/live_dev-2afc/refimgs/rapids.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img13.png",
+      "image_b": "images/live_dev-2afc/jpeg/img141.png",
+      "reference_a": "images/live_dev-2afc/refimgs/buildings.png",
+      "reference_b": "images/live_dev-2afc/refimgs/lighthouse2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img130.png",
+      "image_b": "images/live_dev-2afc/gblur/img101.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing3.png",
+      "reference_b": "images/live_dev-2afc/refimgs/coinsinfountain.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img148.png",
+      "image_b": "images/live_dev-2afc/jpeg/img80.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/carnivaldolls.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img168.png",
+      "image_b": "images/live_dev-2afc/jpeg/img107.png",
+      "reference_a": "images/live_dev-2afc/refimgs/coinsinfountain.png",
+      "reference_b": "images/live_dev-2afc/refimgs/womanhat.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img168.png",
+      "image_b": "images/live_dev-2afc/jpeg/img134.png",
+      "reference_a": "images/live_dev-2afc/refimgs/coinsinfountain.png",
+      "reference_b": "images/live_dev-2afc/refimgs/flowersonih35.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img175.png",
+      "image_b": "images/live_dev-2afc/jp2k/img217.png",
+      "reference_a": "images/live_dev-2afc/refimgs/stream.png",
+      "reference_b": "images/live_dev-2afc/refimgs/stream.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img181.png",
+      "image_b": "images/live_dev-2afc/gblur/img6.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/carnivaldolls.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img19.png",
+      "image_b": "images/live_dev-2afc/jp2k/img43.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing1.png",
+      "reference_b": "images/live_dev-2afc/refimgs/sailing1.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img227.png",
+      "image_b": "images/live_dev-2afc/gblur/img98.png",
+      "reference_a": "images/live_dev-2afc/refimgs/statue.png",
+      "reference_b": "images/live_dev-2afc/refimgs/statue.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img4.png",
+      "image_b": "images/live_dev-2afc/jp2k/img12.png",
+      "reference_a": "images/live_dev-2afc/refimgs/dancers.png",
+      "reference_b": "images/live_dev-2afc/refimgs/sailing3.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img49.png",
+      "image_b": "images/live_dev-2afc/jpeg/img159.png",
+      "reference_a": "images/live_dev-2afc/refimgs/caps.png",
+      "reference_b": "images/live_dev-2afc/refimgs/caps.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jp2k/img81.png",
+      "image_b": "images/live_dev-2afc/wn/img77.png",
+      "reference_a": "images/live_dev-2afc/refimgs/rapids.png",
+      "reference_b": "images/live_dev-2afc/refimgs/rapids.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img104.png",
+      "image_b": "images/live_dev-2afc/jpeg/img25.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/plane.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img121.png",
+      "image_b": "images/live_dev-2afc/wn/img56.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing1.png",
+      "reference_b": "images/live_dev-2afc/refimgs/sailing1.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img134.png",
+      "image_b": "images/live_dev-2afc/jpeg/img198.png",
+      "reference_a": "images/live_dev-2afc/refimgs/flowersonih35.png",
+      "reference_b": "images/live_dev-2afc/refimgs/flowersonih35.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img137.png",
+      "image_b": "images/live_dev-2afc/gblur/img126.png",
+      "reference_a": "images/live_dev-2afc/refimgs/stream.png",
+      "reference_b": "images/live_dev-2afc/refimgs/stream.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img194.png",
+      "image_b": "images/live_dev-2afc/fastfading/img89.png",
+      "reference_a": "images/live_dev-2afc/refimgs/ocean.png",
+      "reference_b": "images/live_dev-2afc/refimgs/caps.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img228.png",
+      "image_b": "images/live_dev-2afc/jp2k/img163.png",
+      "reference_a": "images/live_dev-2afc/refimgs/paintedhouse.png",
+      "reference_b": "images/live_dev-2afc/refimgs/building2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img229.png",
+      "image_b": "images/live_dev-2afc/gblur/img85.png",
+      "reference_a": "images/live_dev-2afc/refimgs/flowersonih35.png",
+      "reference_b": "images/live_dev-2afc/refimgs/flowersonih35.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img231.png",
+      "image_b": "images/live_dev-2afc/wn/img69.png",
+      "reference_a": "images/live_dev-2afc/refimgs/lighthouse.png",
+      "reference_b": "images/live_dev-2afc/refimgs/parrots.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img29.png",
+      "image_b": "images/live_dev-2afc/jpeg/img183.png",
+      "reference_a": "images/live_dev-2afc/refimgs/bikes.png",
+      "reference_b": "images/live_dev-2afc/refimgs/bikes.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img35.png",
+      "image_b": "images/live_dev-2afc/fastfading/img78.png",
+      "reference_a": "images/live_dev-2afc/refimgs/rapids.png",
+      "reference_b": "images/live_dev-2afc/refimgs/rapids.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img58.png",
+      "image_b": "images/live_dev-2afc/wn/img33.png",
+      "reference_a": "images/live_dev-2afc/refimgs/woman.png",
+      "reference_b": "images/live_dev-2afc/refimgs/woman.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img69.png",
+      "image_b": "images/live_dev-2afc/wn/img108.png",
+      "reference_a": "images/live_dev-2afc/refimgs/lighthouse2.png",
+      "reference_b": "images/live_dev-2afc/refimgs/lighthouse2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img80.png",
+      "image_b": "images/live_dev-2afc/fastfading/img105.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/carnivaldolls.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/jpeg/img9.png",
+      "image_b": "images/live_dev-2afc/jpeg/img146.png",
+      "reference_a": "images/live_dev-2afc/refimgs/rapids.png",
+      "reference_b": "images/live_dev-2afc/refimgs/rapids.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img1.png",
+      "image_b": "images/live_dev-2afc/fastfading/img139.png",
+      "reference_a": "images/live_dev-2afc/refimgs/monarch.png",
+      "reference_b": "images/live_dev-2afc/refimgs/monarch.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img1.png",
+      "image_b": "images/live_dev-2afc/gblur/img11.png",
+      "reference_a": "images/live_dev-2afc/refimgs/monarch.png",
+      "reference_b": "images/live_dev-2afc/refimgs/monarch.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img105.png",
+      "image_b": "images/live_dev-2afc/gblur/img86.png",
+      "reference_a": "images/live_dev-2afc/refimgs/plane.png",
+      "reference_b": "images/live_dev-2afc/refimgs/plane.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img109.png",
+      "image_b": "images/live_dev-2afc/fastfading/img119.png",
+      "reference_a": "images/live_dev-2afc/refimgs/house.png",
+      "reference_b": "images/live_dev-2afc/refimgs/cemetry.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img111.png",
+      "image_b": "images/live_dev-2afc/gblur/img133.png",
+      "reference_a": "images/live_dev-2afc/refimgs/paintedhouse.png",
+      "reference_b": "images/live_dev-2afc/refimgs/lighthouse2.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img116.png",
+      "image_b": "images/live_dev-2afc/gblur/img64.png",
+      "reference_a": "images/live_dev-2afc/refimgs/rapids.png",
+      "reference_b": "images/live_dev-2afc/refimgs/woman.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img18.png",
+      "image_b": "images/live_dev-2afc/gblur/img138.png",
+      "reference_a": "images/live_dev-2afc/refimgs/churchandcapitol.png",
+      "reference_b": "images/live_dev-2afc/refimgs/house.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img2.png",
+      "image_b": "images/live_dev-2afc/fastfading/img125.png",
+      "reference_a": "images/live_dev-2afc/refimgs/stream.png",
+      "reference_b": "images/live_dev-2afc/refimgs/manfishing.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img5.png",
+      "image_b": "images/live_dev-2afc/fastfading/img129.png",
+      "reference_a": "images/live_dev-2afc/refimgs/sailing3.png",
+      "reference_b": "images/live_dev-2afc/refimgs/sailing3.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img71.png",
+      "image_b": "images/live_dev-2afc/wn/img63.png",
+      "reference_a": "images/live_dev-2afc/refimgs/carnivaldolls.png",
+      "reference_b": "images/live_dev-2afc/refimgs/cemetry.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img75.png",
+      "image_b": "images/live_dev-2afc/fastfading/img45.png",
+      "reference_a": "images/live_dev-2afc/refimgs/parrots.png",
+      "reference_b": "images/live_dev-2afc/refimgs/parrots.png"
+    },
+    {
+      "image_a": "images/live_dev-2afc/wn/img88.png",
+      "image_b": "images/live_dev-2afc/jpeg/img30.png",
+      "reference_a": "images/live_dev-2afc/refimgs/stream.png",
+      "reference_b": "images/live_dev-2afc/refimgs/ocean.png"
+    }
+  ]
+}

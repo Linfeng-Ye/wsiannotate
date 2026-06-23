@@ -1,0 +1,204 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}MOS Evaluation{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260622">
+{% endblock %}
+
+{% block content %}
+<div class="sizing-{{ study.image_sizing }}"
+     data-scale="{{ study.image_scale_factor }}"
+     {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
+<div class="eval-header">
+    <div class="eval-title">{{ study.name }}</div>
+    <div class="eval-progress">{{ progress.done }} / {{ progress.total }}</div>
+</div>
+
+{% if study.prompt %}
+<div class="eval-prompt">{{ study.prompt }}</div>
+{% endif %}
+
+{% if existing %}
+<div class="eval-warning">
+    You have already rated this image (score={{ existing.score }}).
+    Submitting again will overwrite your previous response.
+</div>
+{% endif %}
+
+<div class="mos-layout">
+    {% if stimulus.reference %}
+    <div class="image-panel">
+        <div class="image-label">Reference</div>
+        <div class="image-wrapper">
+            <img src="{{ stimulus.reference.fname.url }}"
+                 alt="Reference image" class="eval-image">
+        </div>
+    </div>
+    {% endif %}
+    <div class="image-panel">
+        <div class="image-label">Test Image</div>
+        <div class="image-wrapper">
+            <img src="{{ stimulus.image.fname.url }}"
+                 alt="Test image" class="eval-image">
+        </div>
+    </div>
+</div>
+
+<form id="eval-form" method="post" action="{% url 'iqa:evaluation_submit' %}">
+    {% csrf_token %}
+    <input type="hidden" name="study_id" value="{{ study.id }}">
+    <input type="hidden" name="stimulus_id" value="{{ stimulus.id }}">
+
+    <div class="rating-section">
+        {% if study.mos_use_textbox %}
+        <div class="score-textbox-area">
+            <label for="score-textbox" class="score-textbox-label">
+                Score ({{ study.scale_min }} &ndash; {{ study.scale_max }}):
+            </label>
+            <input type="number" id="score-textbox"
+                   name="score"
+                   min="{{ study.scale_min }}"
+                   max="{{ study.scale_max }}"
+                   step="1"
+                   value="{% if existing %}{{ existing.score }}{% endif %}"
+                   class="score-textbox"
+                   autocomplete="off"
+                   autofocus>
+            <div id="score-error" class="score-error"></div>
+        </div>
+        {% else %}
+        <div class="scale-labels">
+            <span>{{ study.scale_min_label }}</span>
+            <span>{{ study.scale_max_label }}</span>
+        </div>
+        <div class="scale-buttons">
+            {% for val in scale_range %}
+            <button type="button"
+                    class="scale-btn{% if existing and existing.score == val %} active{% endif %}"
+                    data-value="{{ val }}">
+                {{ val }}
+            </button>
+            {% endfor %}
+        </div>
+        <input type="hidden" name="score" id="score-input"
+               value="{% if existing %}{{ existing.score }}{% endif %}">
+        {% endif %}
+    </div>
+
+    <div class="submit-section">
+        <button type="submit" class="btn btn-primary submit-btn" disabled>
+            Submit
+        </button>
+    </div>
+</form>
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if study.zoom_enabled %}
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260622"></script>
+{% endif %}
+<script>
+document.addEventListener('DOMContentLoaded', function() {
+    var wrap = document.querySelector('[data-scale]');
+    if (wrap && wrap.classList.contains('sizing-scaled')) {
+        var factor = parseFloat(wrap.dataset.scale) || 1;
+        document.querySelectorAll('.eval-image').forEach(function(img) {
+            function apply() {
+                img.style.width = (img.naturalWidth * factor) + 'px';
+                img.style.height = (img.naturalHeight * factor) + 'px';
+            }
+            if (img.complete) apply();
+            else img.addEventListener('load', apply);
+        });
+    }
+
+    var submit = document.querySelector('.submit-btn');
+    var form = document.getElementById('eval-form');
+    var textbox = document.getElementById('score-textbox');
+
+    if (textbox) {
+        var lo = parseInt(textbox.min, 10);
+        var hi = parseInt(textbox.max, 10);
+        var errEl = document.getElementById('score-error');
+
+        function validateScore() {
+            var raw = textbox.value.trim();
+            if (raw === '') {
+                errEl.textContent = '';
+                submit.disabled = true;
+                return false;
+            }
+            if (!/^-?\d+$/.test(raw)) {
+                errEl.textContent = 'Enter a valid integer.';
+                submit.disabled = true;
+                return false;
+            }
+            var val = parseInt(raw, 10);
+            if (val < lo || val > hi) {
+                errEl.textContent =
+                    'Must be between ' + lo + ' and ' + hi + '.';
+                submit.disabled = true;
+                return false;
+            }
+            errEl.textContent = '';
+            submit.disabled = false;
+            return true;
+        }
+
+        textbox.addEventListener('input', validateScore);
+        validateScore();
+        textbox.focus();
+
+        form.addEventListener('submit', function(e) {
+            if (!validateScore()) {
+                e.preventDefault();
+                return;
+            }
+            submit.disabled = true;
+            submit.textContent = 'Submitting\u2026';
+        });
+    } else {
+        var buttons = document.querySelectorAll('.scale-btn');
+        var hidden = document.getElementById('score-input');
+
+        if (hidden.value) submit.disabled = false;
+
+        buttons.forEach(function(btn) {
+            btn.addEventListener('click', function() {
+                buttons.forEach(function(b) {
+                    b.classList.remove('active');
+                });
+                btn.classList.add('active');
+                hidden.value = btn.dataset.value;
+                submit.disabled = false;
+            });
+        });
+
+        document.addEventListener('keydown', function(e) {
+            if (e.key >= '1' && e.key <= '9') {
+                var btn = document.querySelector(
+                    '.scale-btn[data-value="'
+                    + e.key + '"]'
+                );
+                if (btn) btn.click();
+            } else if (e.key === 'Enter'
+                       && !submit.disabled) {
+                e.preventDefault();
+                submit.click();
+            }
+        });
+
+        form.addEventListener('submit', function(e) {
+            if (!hidden.value) {
+                e.preventDefault();
+                return;
+            }
+            submit.disabled = true;
+            submit.textContent = 'Submitting\u2026';
+        });
+    }
+});
+</script>
+{% endblock %}

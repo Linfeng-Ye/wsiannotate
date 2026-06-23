@@ -1,0 +1,150 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/123_R01.png_crop_214.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/123_R01.png_crop_214_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 8,
+      "left": 10,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 3,
+      "distortions": [
+        {
+          "name": "homography_warp",
+          "H": null,
+          "perspective_strength": -0.009029248567960346
+        },
+        {
+          "name": "denoise_artifact",
+          "backend": "trained_checkpoint",
+          "requested_task": [
+            "denoise"
+          ],
+          "selected": {
+            "name": "trained_cnn_distortion",
+            "task": "denoise",
+            "run_name": "denoise_run_29",
+            "run_dir": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_29",
+            "source_type": "directory",
+            "source_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_29",
+            "config_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_29/config.json",
+            "checkpoint_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_29/checkpoints/final.pt",
+            "checkpoint_name": "final.pt",
+            "checkpoint_policy": "always_final_checkpoint",
+            "precision": "fp32",
+            "prefer_torchscript": false,
+            "sample_per_image": false,
+            "corruption_backend": "train_cnn_distortion_corrected.apply_input_corruption",
+            "checkpoint_default_corruption": {
+              "task": "denoise",
+              "input_corruption": "gaussian",
+              "noise_sigma": 0.08,
+              "num_layers": 4,
+              "base_channels": 32,
+              "max_channels": 128,
+              "upsample_mode": "bilinear",
+              "norm": "none",
+              "residual_output": true,
+              "residual_scale": 0.15
+            },
+            "wrapper_model_input": {
+              "noise_type": "training",
+              "noise_std": 0.05,
+              "input_blur_sigma": 0.0,
+              "weight_mode": "quantized",
+              "uses_checkpoint_default_input": true
+            },
+            "wrapper_output": {},
+            "input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "default_model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "output_shape": [
+              1,
+              3,
+              256,
+              256
+            ]
+          }
+        },
+        {
+          "name": "jpegxl",
+          "quality": null,
+          "effort": 7,
+          "distance": 1.2,
+          "modular": 0,
+          "resampling": 2,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "55c368da5d5843b9"
+          ]
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 8,
+      "left": 10,
+      "size": 256
+    },
+    "category": "geometry",
+    "distortion_type": "homography_warp",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "homography_warp",
+          "H": null,
+          "perspective_strength": 0.007968108748214174
+        },
+        {
+          "name": "avif",
+          "cq_level": 40,
+          "speed": 6,
+          "aq_mode": 3,
+          "tune": "psnr",
+          "sharpness": 0,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "bb49a1208d5e4987"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

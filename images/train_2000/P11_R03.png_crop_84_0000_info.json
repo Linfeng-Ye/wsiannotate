@@ -1,0 +1,134 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/P11_R03.png_crop_84.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/P11_R03.png_crop_84_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 9,
+      "left": 1,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 3,
+      "distortions": [
+        {
+          "name": "rotation",
+          "angle_degrees": 2.8263661115903655
+        },
+        {
+          "name": "denoise_artifact",
+          "backend": "trained_checkpoint",
+          "requested_task": [
+            "denoise"
+          ],
+          "selected": {
+            "name": "trained_cnn_distortion",
+            "task": "denoise",
+            "run_name": "denoise_run_30",
+            "run_dir": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_30",
+            "source_type": "directory",
+            "source_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_30",
+            "config_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_30/config.json",
+            "checkpoint_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/denoise_run_30/checkpoints/final.pt",
+            "checkpoint_name": "final.pt",
+            "checkpoint_policy": "always_final_checkpoint",
+            "precision": "fp32",
+            "prefer_torchscript": false,
+            "sample_per_image": false,
+            "corruption_backend": "train_cnn_distortion_corrected.apply_input_corruption",
+            "checkpoint_default_corruption": {
+              "task": "denoise",
+              "input_corruption": "gaussian",
+              "noise_sigma": 0.08,
+              "num_layers": 4,
+              "base_channels": 32,
+              "max_channels": 128,
+              "upsample_mode": "bilinear",
+              "norm": "none",
+              "residual_output": true,
+              "residual_scale": 0.15
+            },
+            "wrapper_model_input": {
+              "noise_type": "gaussian",
+              "noise_std": 0.046796188185349176,
+              "input_blur_sigma": 0.3899323154154485,
+              "weight_mode": "normal",
+              "uses_checkpoint_default_input": false
+            },
+            "wrapper_output": {},
+            "input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "default_model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "output_shape": [
+              1,
+              3,
+              256,
+              256
+            ]
+          }
+        },
+        {
+          "name": "none"
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 9,
+      "left": 1,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "avif",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "avif",
+          "cq_level": 42,
+          "speed": 6,
+          "aq_mode": 1,
+          "tune": "ssim",
+          "sharpness": 3,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "a58a9c46eb954f67"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

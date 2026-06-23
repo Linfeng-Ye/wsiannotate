@@ -1,0 +1,69 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/020.png_crop_5695.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/020.png_crop_5695_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 12,
+      "left": 7,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "brightness_shift",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "brightness_shift",
+          "delta": -0.0585484198745051
+        },
+        {
+          "name": "webp",
+          "quality": 57,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 12,
+      "left": 7,
+      "size": 256
+    },
+    "category": "compression",
+    "distortion_type": "avif",
+    "deferred": true,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 1,
+      "distortions": [
+        {
+          "name": "avif",
+          "cq_level": 21,
+          "speed": 6,
+          "aq_mode": 0,
+          "tune": "ssim",
+          "sharpness": 3,
+          "depth": 8,
+          "yuv": 420,
+          "intermediate_dir": "/tmp/intermediate",
+          "deferred": true,
+          "intermediate_ids": [
+            "fa49e6246b59423c"
+          ]
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

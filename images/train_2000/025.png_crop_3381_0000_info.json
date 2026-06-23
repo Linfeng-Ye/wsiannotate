@@ -1,0 +1,147 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/025.png_crop_3381.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/025.png_crop_3381_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 0,
+      "left": 14,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 6,
+      "distortions": [
+        {
+          "name": "bilateral_filter",
+          "sigma_spatial": 0.46178200020905336,
+          "sigma_range": 0.004747414799697214,
+          "kernel_size": null
+        },
+        {
+          "name": "small_shift",
+          "dx_pixels": -1.0704309398567773,
+          "dy_pixels": -0.22142004419246408
+        },
+        {
+          "name": "brightness_shift",
+          "delta": -0.22266274584780468
+        },
+        {
+          "name": "gaussian_colored_noise",
+          "sigma": 0.03335212260890443,
+          "beta": -0.6096479801973145
+        },
+        {
+          "name": "autoencoder_artifact",
+          "backend": "trained_checkpoint",
+          "requested_task": [
+            "colorize"
+          ],
+          "selected": {
+            "name": "trained_cnn_distortion",
+            "task": "colorize",
+            "run_name": "colorize_run_18",
+            "run_dir": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/colorize_run_18",
+            "source_type": "directory",
+            "source_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/colorize_run_18",
+            "config_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/colorize_run_18/config.json",
+            "checkpoint_path": "/home/yang/Documents/uwaterloo/experienments/wsiqa/linfeng-distortiions/Distortions/runs/colorize_run_18/checkpoints/final.pt",
+            "checkpoint_name": "final.pt",
+            "checkpoint_policy": "always_final_checkpoint",
+            "precision": "fp32",
+            "prefer_torchscript": false,
+            "sample_per_image": false,
+            "corruption_backend": "train_cnn_distortion_corrected.apply_input_corruption",
+            "checkpoint_default_corruption": {
+              "task": "colorize",
+              "input_corruption": "color_removal",
+              "noise_sigma": 0.08,
+              "num_layers": 4,
+              "base_channels": 32,
+              "max_channels": 128,
+              "upsample_mode": "nearest",
+              "norm": "instance",
+              "residual_output": false,
+              "residual_scale": 0.25
+            },
+            "wrapper_model_input": {
+              "weight_mode": "quantized",
+              "latent_mode": "dropout",
+              "uses_checkpoint_default_input": false
+            },
+            "wrapper_output": {
+              "latent_mode": "dropout",
+              "latent_dropout_p": 0.0559050627723348
+            },
+            "input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "default_model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "model_input_shape": [
+              1,
+              3,
+              256,
+              256
+            ],
+            "output_shape": [
+              1,
+              3,
+              256,
+              256
+            ]
+          }
+        },
+        {
+          "name": "webp",
+          "quality": 51,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 0,
+      "left": 14,
+      "size": 256
+    },
+    "category": "color",
+    "distortion_type": "saturation_scale",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "saturation_scale",
+          "factor": 0.687680662536927
+        },
+        {
+          "name": "webp",
+          "quality": 89,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}

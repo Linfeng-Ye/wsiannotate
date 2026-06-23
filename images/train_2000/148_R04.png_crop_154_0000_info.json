@@ -1,0 +1,74 @@
+{
+  "source_image": "/mnt/datamonster/data/wsi/ADP V1.0 Release/img_res_1um_bicubic/148_R04.png_crop_154.png",
+  "reference_images": {
+    "shared": "/mnt/datamonster/data/wsi/adp-processed/adp_distorted/train_2000/148_R04.png_crop_154_0000_ref.png",
+    "a": null,
+    "b": null
+  },
+  "a": {
+    "source_crop": {
+      "top": 13,
+      "left": 3,
+      "size": 256
+    },
+    "category": "blur",
+    "distortion_type": "bilateral_filter",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 2,
+      "distortions": [
+        {
+          "name": "bilateral_filter",
+          "sigma_spatial": 1.7904571188291274,
+          "sigma_range": 0.07966162269240362,
+          "kernel_size": null
+        },
+        {
+          "name": "webp",
+          "quality": 75,
+          "method": 4
+        }
+      ]
+    }
+  },
+  "b": {
+    "source_crop": {
+      "top": 13,
+      "left": 3,
+      "size": 256
+    },
+    "category": "complex",
+    "distortion_type": "complex",
+    "deferred": false,
+    "pipeline_info": {
+      "name": "compose",
+      "num_distortions": 4,
+      "distortions": [
+        {
+          "name": "gaussian_blur",
+          "sigma": 0.8251614743970154
+        },
+        {
+          "name": "gaussian_colored_noise",
+          "sigma": 0.04039643882169511,
+          "beta": -0.37343239118167093
+        },
+        {
+          "name": "rotation",
+          "angle_degrees": -2.1716105337281846
+        },
+        {
+          "name": "jpeg2000",
+          "rate": 11.351136383734241,
+          "irreversible": true
+        }
+      ]
+    }
+  },
+  "constraints": {
+    "same_location": true,
+    "same_category": false,
+    "same_distortion_type": false
+  }
+}
