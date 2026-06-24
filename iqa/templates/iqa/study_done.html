@@ -9,6 +9,17 @@
         <strong>{{ study.name }}</strong>.
     </p>
     <p>Thank you for your participation.</p>
+    {% if can_go_previous %}
+    <form method="post"
+          action="{% url 'iqa:previous_stimulus' %}"
+          style="display:inline-block;margin-top:20px;">
+        {% csrf_token %}
+        <input type="hidden" name="study_id" value="{{ study.id }}">
+        <button type="submit" class="btn" style="background:#6c757d;color:#fff;">
+            Previous
+        </button>
+    </form>
+    {% endif %}
     <a href="{% url 'iqa:home' %}" class="btn btn-primary" style="margin-top:20px;">
         Back to Home
     </a>

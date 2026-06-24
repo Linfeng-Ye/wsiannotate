@@ -57,7 +57,11 @@
 <div class="pair-shared-ref-layout">
     <div class="image-panel">
         <div class="image-label">Image A</div>
-        <div class="image-wrapper">
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="A"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image A">
             <img src="{{ img_a.fname.url }}"
                  alt="Image A" class="eval-image">
         </div>
@@ -73,7 +77,11 @@
     {% endif %}
     <div class="image-panel">
         <div class="image-label">Image B</div>
-        <div class="image-wrapper">
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="B"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image B">
             <img src="{{ img_b.fname.url }}"
                  alt="Image B" class="eval-image">
         </div>
@@ -106,6 +114,17 @@
            id="choice-input"
            value="{% if existing_display_choice %}{{ existing_display_choice }}{% endif %}">
     <div class="submit-section">
+        <button type="submit"
+                form="previous-form"
+                class="btn previous-btn"
+                {% if not can_go_previous %}disabled{% endif %}>
+            Previous
+        </button>
+        <button type="button"
+                class="btn quit-btn"
+                data-quit-url="{% url 'iqa:home' %}">
+            Quit
+        </button>
         <button type="submit"
                 class="btn btn-primary submit-btn"
                 disabled>
@@ -143,13 +162,21 @@
         <div class="pair-image-row">
             <div class="pair-row-label">Tgt A</div>
             <div class="pair-image-cell">
-                <div class="image-wrapper">
+                <div class="image-wrapper choice-image-wrapper"
+                     data-image-choice="A"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Choose Image A">
                     <img src="{{ img_a.fname.url }}"
                          alt="Image A" class="eval-image">
                 </div>
             </div>
             <div class="pair-image-cell">
-                <div class="image-wrapper">
+                <div class="image-wrapper choice-image-wrapper"
+                     data-image-choice="B"
+                     role="button"
+                     tabindex="0"
+                     aria-label="Choose Image B">
                     <img src="{{ img_b.fname.url }}"
                          alt="Image B" class="eval-image">
                 </div>
@@ -205,6 +232,17 @@
                    value="{% if existing_display_choice %}{{ existing_display_choice }}{% endif %}">
             <div class="submit-section">
                 <button type="submit"
+                        form="previous-form"
+                        class="btn previous-btn"
+                        {% if not can_go_previous %}disabled{% endif %}>
+                    Previous
+                </button>
+                <button type="button"
+                        class="btn quit-btn"
+                        data-quit-url="{% url 'iqa:home' %}">
+                    Quit
+                </button>
+                <button type="submit"
                         class="btn btn-primary submit-btn"
                         disabled>
                     Submit
@@ -216,6 +254,12 @@
 {% endif %}
 
 </div>
+<form id="previous-form" method="post"
+      action="{% url 'iqa:previous_stimulus' %}">
+    {% csrf_token %}
+    <input type="hidden" name="study_id" value="{{ study.id }}">
+    <input type="hidden" name="stimulus_id" value="{{ stimulus.id }}">
+</form>
 {% endblock %}
 
 {% block extra_js %}
@@ -239,35 +283,75 @@ document.addEventListener('DOMContentLoaded', function() {
     }
 
     var pairBtns = document.querySelectorAll('.pair-btn');
+    var choiceImages = document.querySelectorAll('[data-image-choice]');
     var hidden = document.getElementById('choice-input');
     var submit = document.querySelector('.submit-btn');
 
-    if (hidden.value) submit.disabled = false;
+    function setChoice(choice) {
+        pairBtns.forEach(function(btn) {
+            btn.classList.toggle(
+                'active',
+                btn.dataset.choice === choice
+            );
+        });
+        choiceImages.forEach(function(target) {
+            target.classList.toggle(
+                'selected',
+                target.dataset.imageChoice === choice
+            );
+        });
+        hidden.value = choice;
+        submit.disabled = false;
+    }
+
+    if (hidden.value) setChoice(hidden.value);
 
     pairBtns.forEach(function(btn) {
         btn.addEventListener('click', function() {
-            pairBtns.forEach(function(b) { b.classList.remove('active'); });
-            btn.classList.add('active');
-            hidden.value = btn.dataset.choice;
-            submit.disabled = false;
+            setChoice(btn.dataset.choice);
+        });
+    });
+
+    choiceImages.forEach(function(target) {
+        target.addEventListener('click', function() {
+            setChoice(target.dataset.imageChoice);
+        });
+        target.addEventListener('keydown', function(e) {
+            if (e.key === 'Enter' || e.key === ' ') {
+                e.preventDefault();
+                setChoice(target.dataset.imageChoice);
+            }
         });
     });
 
     document.addEventListener('keydown', function(e) {
         var key = e.key.toUpperCase();
         if (key === 'A' || e.key === '1') {
-            document.querySelector(
-                '.pair-btn[data-choice="A"]'
-            ).click();
+            setChoice('A');
         } else if (key === 'B' || e.key === '2') {
-            document.querySelector(
-                '.pair-btn[data-choice="B"]'
-            ).click();
+            setChoice('B');
         } else if (e.key === 'Enter'
                    && !submit.disabled) {
             e.preventDefault();
             submit.click();
         }
+    });
+
+    document.querySelectorAll('.previous-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.textContent = 'Loading...';
+        });
+    });
+
+    document.querySelectorAll('.quit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.textContent = 'Closing...';
+            window.open('', '_self');
+            window.close();
+            window.setTimeout(function() {
+                window.location.href = btn.dataset.quitUrl;
+            }, 300);
+        });
     });
 
     document.getElementById('eval-form').addEventListener('submit', function(e) {

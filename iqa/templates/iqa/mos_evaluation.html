@@ -87,12 +87,29 @@
     </div>
 
     <div class="submit-section">
+        <button type="submit"
+                form="previous-form"
+                class="btn previous-btn"
+                {% if not can_go_previous %}disabled{% endif %}>
+            Previous
+        </button>
+        <button type="button"
+                class="btn quit-btn"
+                data-quit-url="{% url 'iqa:home' %}">
+            Quit
+        </button>
         <button type="submit" class="btn btn-primary submit-btn" disabled>
             Submit
         </button>
     </div>
 </form>
 </div>
+<form id="previous-form" method="post"
+      action="{% url 'iqa:previous_stimulus' %}">
+    {% csrf_token %}
+    <input type="hidden" name="study_id" value="{{ study.id }}">
+    <input type="hidden" name="stimulus_id" value="{{ stimulus.id }}">
+</form>
 {% endblock %}
 
 {% block extra_js %}
@@ -117,6 +134,23 @@ document.addEventListener('DOMContentLoaded', function() {
     var submit = document.querySelector('.submit-btn');
     var form = document.getElementById('eval-form');
     var textbox = document.getElementById('score-textbox');
+
+    document.querySelectorAll('.previous-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.textContent = 'Loading...';
+        });
+    });
+
+    document.querySelectorAll('.quit-btn').forEach(function(btn) {
+        btn.addEventListener('click', function() {
+            btn.textContent = 'Closing...';
+            window.open('', '_self');
+            window.close();
+            window.setTimeout(function() {
+                window.location.href = btn.dataset.quitUrl;
+            }, 300);
+        });
+    });
 
     if (textbox) {
         var lo = parseInt(textbox.min, 10);

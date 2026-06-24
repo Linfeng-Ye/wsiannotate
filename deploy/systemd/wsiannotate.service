@@ -1,0 +1,16 @@
+[Unit]
+Description=WSI Annotate Django application
+After=network.target
+
+[Service]
+Type=simple
+User=eric
+Group=www-data
+WorkingDirectory=/opt/wsiannotate/image_subjective_test
+EnvironmentFile=/opt/wsiannotate/image_subjective_test/.env
+ExecStart=/opt/wsiannotate/image_subjective_test/.venv/bin/gunicorn iqa_site.wsgi:application --bind 127.0.0.1:8000 --workers 2 --timeout 120
+Restart=always
+RestartSec=5
+
+[Install]
+WantedBy=multi-user.target

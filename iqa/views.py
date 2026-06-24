@@ -130,6 +130,149 @@ def _study_image_urls(request, study, current_stimulus_id=None):
     return urls
 
 
+def _history_key(study_id):
+    return f'iqa_previous_stimuli_{study_id}'
+
+
+def _clean_history(raw_history):
+    history = []
+    for item in raw_history or []:
+        try:
+            history.append(int(item))
+        except (TypeError, ValueError):
+            continue
+    return history
+
+
+def _history_for_previous(request, study, current_stimulus_id=None):
+    history = _clean_history(
+        request.session.get(_history_key(study.id), [])
+    )
+    if current_stimulus_id is not None:
+        try:
+            current_stimulus_id = int(current_stimulus_id)
+        except (TypeError, ValueError):
+            current_stimulus_id = None
+    while (
+        current_stimulus_id is not None
+        and history
+        and history[-1] == current_stimulus_id
+    ):
+        history.pop()
+    return history
+
+
+def _answered_stimulus_ids(study, user):
+    if study.mode == Study.MODE_MOS:
+        return set(
+            MOSResponse.objects.filter(
+                user=user, stimulus__study=study,
+            ).values_list('stimulus_id', flat=True)
+        )
+    return set(
+        PairResponse.objects.filter(
+            user=user, stimulus__study=study,
+        ).values_list('stimulus_id', flat=True)
+    )
+
+
+def _ordered_stimuli_for_previous(study):
+    if study.mode == Study.MODE_MOS:
+        return study.mos_stimuli.order_by('order', 'id')
+    return study.pair_stimuli.order_by('order', 'id')
+
+
+def _previous_answered_from_database(
+    study, user, current_stimulus_id=None,
+    exclude_ids=None,
+):
+    answered_ids = _answered_stimulus_ids(study, user)
+    exclude_ids = set(exclude_ids or [])
+    try:
+        current_stimulus_id = int(current_stimulus_id)
+    except (TypeError, ValueError):
+        current_stimulus_id = None
+
+    ordered_ids = list(
+        _ordered_stimuli_for_previous(study)
+        .values_list('id', flat=True)
+    )
+    if current_stimulus_id in ordered_ids:
+        candidates = ordered_ids[
+            :ordered_ids.index(current_stimulus_id)
+        ]
+    else:
+        candidates = ordered_ids
+
+    for stimulus_id in reversed(candidates):
+        if stimulus_id in answered_ids and stimulus_id not in exclude_ids:
+            return stimulus_id
+    return None
+
+
+def _can_go_previous(request, study, current_stimulus_id=None):
+    history = _history_for_previous(
+        request, study, current_stimulus_id,
+    )
+    if history:
+        return True
+    return _previous_answered_from_database(
+        study,
+        request.user,
+        current_stimulus_id=current_stimulus_id,
+        exclude_ids=history,
+    ) is not None
+
+
+def _remember_previous_stimulus(request, study, stimulus_id):
+    try:
+        stimulus_id = int(stimulus_id)
+    except (TypeError, ValueError):
+        return
+    key = _history_key(study.id)
+    history = _clean_history(request.session.get(key, []))
+    if not history or history[-1] != stimulus_id:
+        history.append(stimulus_id)
+    request.session[key] = history[-100:]
+    request.session.modified = True
+
+
+def _pop_previous_stimulus(request, study, current_stimulus_id=None):
+    key = _history_key(study.id)
+    history = _history_for_previous(
+        request, study, current_stimulus_id,
+    )
+    if history:
+        previous_id = history.pop()
+    else:
+        previous_id = _previous_answered_from_database(
+            study,
+            request.user,
+            current_stimulus_id=current_stimulus_id,
+        )
+    request.session[key] = history
+    request.session.modified = True
+    return previous_id
+
+
+def _evaluation_url(study, stimulus_id):
+    if study.mode == Study.MODE_MOS:
+        return reverse(
+            'iqa:mos_evaluation',
+            kwargs={
+                'study_id': study.id,
+                'stimulus_id': stimulus_id,
+            },
+        )
+    return reverse(
+        'iqa:pair_evaluation',
+        kwargs={
+            'study_id': study.id,
+            'stimulus_id': stimulus_id,
+        },
+    )
+
+
 def login_redirect(request):
     return redirect('iqa:home')
 
@@ -158,21 +301,7 @@ def _next_url_for_study(study, user):
     stimulus = get_next_stimulus(study, user)
     if stimulus is None:
         return None
-    if study.mode == Study.MODE_MOS:
-        return reverse(
-            'iqa:mos_evaluation',
-            kwargs={
-                'study_id': study.id,
-                'stimulus_id': stimulus.id,
-            },
-        )
-    return reverse(
-        'iqa:pair_evaluation',
-        kwargs={
-            'study_id': study.id,
-            'stimulus_id': stimulus.id,
-        },
-    )
+    return _evaluation_url(study, stimulus.id)
 
 
 @login_required
@@ -185,7 +314,10 @@ def next_stimulus(request):
     if stimulus is None:
         return render(
             request, 'iqa/study_done.html',
-            {'study': study},
+            {
+                'study': study,
+                'can_go_previous': _can_go_previous(request, study),
+            },
         )
 
     if study.mode == Study.MODE_MOS:
@@ -202,11 +334,31 @@ def next_stimulus(request):
 
 
 @login_required
+@require_POST
+def previous_stimulus(request):
+    study = get_object_or_404(
+        Study, id=request.POST.get('study_id'),
+    )
+    current_stimulus_id = request.POST.get('stimulus_id')
+    previous_id = _pop_previous_stimulus(
+        request, study, current_stimulus_id,
+    )
+    if previous_id is None:
+        if current_stimulus_id:
+            return redirect(_evaluation_url(study, current_stimulus_id))
+        return redirect('iqa:home')
+    return redirect(_evaluation_url(study, previous_id))
+
+
+@login_required
 def study_done(request, study_id):
     study = get_object_or_404(Study, id=study_id)
     return render(
         request, 'iqa/study_done.html',
-        {'study': study},
+        {
+            'study': study,
+            'can_go_previous': _can_go_previous(request, study),
+        },
     )
 
 
@@ -258,6 +410,9 @@ def mos_evaluation(request, study_id, stimulus_id):
             'existing': existing,
             'progress': progress,
             'scale_range': scale_range,
+            'can_go_previous': _can_go_previous(
+                request, study, stimulus.id,
+            ),
         },
     )
 
@@ -288,7 +443,10 @@ def pair_evaluation(request, study_id, stimulus_id):
     sess_key = f'pair_swap_{study.id}_{stimulus.id}'
     swap = request.session.get(sess_key)
     if swap is None:
-        swap = bool(random.getrandbits(1))
+        if existing is not None and existing.display_choice:
+            swap = existing.was_swapped
+        else:
+            swap = bool(random.getrandbits(1))
         request.session[sess_key] = swap
 
     if swap:
@@ -304,7 +462,9 @@ def pair_evaluation(request, study_id, stimulus_id):
 
     existing_display_choice = None
     if existing is not None:
-        if not swap:
+        if existing.display_choice:
+            existing_display_choice = existing.display_choice
+        elif not swap:
             existing_display_choice = existing.choice
         else:
             existing_display_choice = (
@@ -337,6 +497,9 @@ def pair_evaluation(request, study_id, stimulus_id):
             'shared_ref': shared_ref,
             'ref_mismatch_error': ref_mismatch_error,
             'user_identifier': request.user.username,
+            'can_go_previous': _can_go_previous(
+                request, study, stimulus.id,
+            ),
         },
     )
 
@@ -448,6 +611,10 @@ def evaluation_submit(request):
         )
         sess_key = f'pair_swap_{study.id}_{stimulus.id}'
         request.session.pop(sess_key, None)
+
+    _remember_previous_stimulus(
+        request, study, stimulus.id,
+    )
 
     if is_ajax:
         progress = get_progress(study, request.user)

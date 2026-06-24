@@ -7,10 +7,7 @@ For MOS studies the columns are:
 
 For 2AFC studies the columns are:
     study, stimulus_order, image_a, image_b,
-    reference_a, reference_b, user, choice,
-    display_choice, was_swapped, shown_image_a,
-    shown_image_b, shown_reference_a, shown_reference_b,
-    timestamp
+    reference_a, reference_b, user, choice, timestamp
 
 By default, responses for every study are exported.
 Use --study to restrict to a single study (by ID or
@@ -36,11 +33,7 @@ PAIR_HEADER = [
     'study', 'stimulus_order',
     'image_a', 'image_b',
     'reference_a', 'reference_b',
-    'user', 'choice',
-    'display_choice', 'was_swapped',
-    'shown_image_a', 'shown_image_b',
-    'shown_reference_a', 'shown_reference_b',
-    'timestamp',
+    'user', 'choice', 'timestamp',
 ]
 
 
@@ -102,12 +95,6 @@ def _write_pair(writer, study: Study) -> int:
             _image_str(r.stimulus.reference_b),
             r.user.username,
             r.choice,
-            r.display_choice,
-            r.was_swapped,
-            r.shown_image_a,
-            r.shown_image_b,
-            r.shown_reference_a,
-            r.shown_reference_b,
             r.timestamp.isoformat(),
         ])
         count += 1

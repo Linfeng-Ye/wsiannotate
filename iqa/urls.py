@@ -31,6 +31,11 @@ urlpatterns = [
         name='next_stimulus',
     ),
     path(
+        'previous-stimulus/',
+        views.previous_stimulus,
+        name='previous_stimulus',
+    ),
+    path(
         'study/<int:study_id>/done/',
         views.study_done,
         name='study_done',

@@ -68,30 +68,11 @@ body {
     display: flex;
     align-items: center;
     justify-content: center;
-    border: 2px solid transparent;
 }
 
 .eval-image {
     display: block;
     border-radius: 4px;
-}
-
-.choice-image-wrapper {
-    cursor: pointer;
-    transition: border-color 0.15s, box-shadow 0.15s,
-                background 0.15s;
-}
-
-.choice-image-wrapper:hover,
-.choice-image-wrapper:focus {
-    border-color: #7a7a7a;
-    outline: none;
-}
-
-.choice-image-wrapper.selected {
-    border-color: #447e9b;
-    box-shadow: 0 0 0 3px rgba(68, 126, 155, 0.35);
-    background: #8a8a8a;
 }
 
 /* --- Sizing mode: fit_screen (default) --- */
