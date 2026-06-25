@@ -9,6 +9,7 @@
 {% block content %}
 <div class="sizing-{{ study.image_sizing }}"
      data-scale="{{ study.image_scale_factor }}"
+     data-background-preload-url="{% url 'iqa:preload_manifest' study.id %}?current={{ stimulus.id }}&limit=10"
      {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
 <div class="eval-header">
     <div class="eval-title">{{ study.name }}</div>
@@ -116,6 +117,7 @@
 {% if study.zoom_enabled %}
 <script src="{% static 'iqa/js/zoom.js' %}?v=20260622"></script>
 {% endif %}
+<script src="{% static 'iqa/js/preload.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var wrap = document.querySelector('[data-scale]');

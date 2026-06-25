@@ -28,23 +28,105 @@ from .samplers import get_next_stimulus, get_progress
 
 PRELOAD_SW_JS = """
 const IQA_CACHE_PREFIX = 'iqa-study-images-';
+const IQA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
+const IQA_META_PATH = '/iqa/preload-cache-meta.json';
+let lastExpirySweep = 0;
 
 self.addEventListener('install', function(event) {
     event.waitUntil(self.skipWaiting());
 });
 
 self.addEventListener('activate', function(event) {
-    event.waitUntil(self.clients.claim());
+    event.waitUntil(
+        Promise.all([
+            self.clients.claim(),
+            deleteExpiredCaches(true)
+        ])
+    );
 });
 
+function isStudyCache(cacheName) {
+    return cacheName.indexOf(IQA_CACHE_PREFIX) === 0;
+}
+
+function metadataRequest(cacheName) {
+    return new Request(
+        self.location.origin + IQA_META_PATH
+        + '?cache=' + encodeURIComponent(cacheName)
+    );
+}
+
+async function readMetadata(cacheName) {
+    var cache = await caches.open(cacheName);
+    var response = await cache.match(metadataRequest(cacheName));
+    if (!response) return null;
+    try {
+        return await response.clone().json();
+    } catch (err) {
+        return null;
+    }
+}
+
+function isExpired(metadata) {
+    if (!metadata) return false;
+    var expiresAt = metadata.expires_at;
+    if (!expiresAt && metadata.created_at) {
+        expiresAt = metadata.created_at + IQA_CACHE_TTL_MS;
+    }
+    if (!expiresAt) return true;
+    return Date.now() > expiresAt;
+}
+
+async function deleteExpiredCaches(force) {
+    var now = Date.now();
+    if (!force && now - lastExpirySweep < 60000) return;
+    lastExpirySweep = now;
+
+    var cacheNames = await caches.keys();
+    await Promise.all(cacheNames.map(async function(cacheName) {
+        if (!isStudyCache(cacheName)) return;
+        var metadata = await readMetadata(cacheName);
+        if (metadata && isExpired(metadata)) {
+            await caches.delete(cacheName);
+        }
+    }));
+}
+
+async function matchCachedImage(request, url) {
+    await deleteExpiredCaches(false);
+    var cacheNames = await caches.keys();
+    for (var i = 0; i < cacheNames.length; i += 1) {
+        var cacheName = cacheNames[i];
+        if (!isStudyCache(cacheName)) continue;
+
+        var metadata = await readMetadata(cacheName);
+        if (!metadata) continue;
+        if (isExpired(metadata)) {
+            await caches.delete(cacheName);
+            continue;
+        }
+
+        var cache = await caches.open(cacheName);
+        var cached = await cache.match(request);
+        if (cached) return cached;
+
+        cached = await cache.match(url.href);
+        if (cached) return cached;
+    }
+    return null;
+}
+
 self.addEventListener('fetch', function(event) {
+    if (event.request.method !== 'GET') return;
+
     var url = new URL(event.request.url);
     var isMedia = url.pathname.indexOf('/media/') === 0;
+    var isCdnImage = url.pathname.indexOf('/images/') === 0;
     var isImage = event.request.destination === 'image';
-    if (!isMedia && !isImage) return;
+    if (!isMedia && !isCdnImage && !isImage) return;
 
     event.respondWith(
-        caches.match(event.request).then(function(cached) {
+        matchCachedImage(event.request, url).then(function(cached) {
             if (cached) return cached;
             return fetch(event.request);
         })
@@ -66,36 +148,36 @@ def _add_image_url(request, urls, seen, image):
         seen.add(url)
 
 
-def _ordered_stimuli_for_preload(study, user):
+def _ordered_stimuli_for_preload(study, user, include_completed=False):
     if study.mode == Study.MODE_MOS:
-        done_ids = MOSResponse.objects.filter(
-            user=user, stimulus__study=study,
-        ).values_list('stimulus_id', flat=True)
-        remaining = study.mos_stimuli.exclude(
-            id__in=done_ids,
-        ).select_related(
+        stimuli = study.mos_stimuli.select_related(
             'image', 'reference',
         )
+        if not include_completed:
+            done_ids = MOSResponse.objects.filter(
+                user=user, stimulus__study=study,
+            ).values_list('stimulus_id', flat=True)
+            stimuli = stimuli.exclude(id__in=done_ids)
     else:
-        done_ids = PairResponse.objects.filter(
-            user=user, stimulus__study=study,
-        ).values_list('stimulus_id', flat=True)
-        remaining = study.pair_stimuli.exclude(
-            id__in=done_ids,
-        ).select_related(
+        stimuli = study.pair_stimuli.select_related(
             'image_a', 'image_b',
             'reference_a', 'reference_b',
         )
+        if not include_completed:
+            done_ids = PairResponse.objects.filter(
+                user=user, stimulus__study=study,
+            ).values_list('stimulus_id', flat=True)
+            stimuli = stimuli.exclude(id__in=done_ids)
 
     if study.sampler == Study.SAMPLER_LEAST_EVAL:
         resp_related = (
             'mosresponse'
             if study.mode == Study.MODE_MOS else 'pairresponse'
         )
-        return remaining.annotate(
+        return stimuli.annotate(
             n=Count(resp_related),
         ).order_by('n', 'order', 'id')
-    return remaining.order_by('order', 'id')
+    return stimuli.order_by('order', 'id')
 
 
 def _rotate_from_current(stimuli, current_stimulus_id):
@@ -109,11 +191,16 @@ def _rotate_from_current(stimuli, current_stimulus_id):
     return stimuli[start:] + stimuli[:start]
 
 
-def _study_image_urls(request, study, current_stimulus_id=None):
+def _study_image_urls(
+    request, study, current_stimulus_id=None,
+    include_completed=False,
+):
     urls = []
     seen = set()
     stimuli = list(
-        _ordered_stimuli_for_preload(study, request.user)
+        _ordered_stimuli_for_preload(
+            study, request.user, include_completed=include_completed,
+        )
     )
     stimuli = _rotate_from_current(stimuli, current_stimulus_id)
 
@@ -366,12 +453,22 @@ def study_done(request, study_id):
 def preload_manifest(request, study_id):
     study = get_object_or_404(Study, id=study_id, is_active=True)
     current_stimulus_id = request.GET.get('current')
+    try:
+        limit = int(request.GET.get('limit', '0'))
+    except (TypeError, ValueError):
+        limit = 0
     urls = _study_image_urls(request, study, current_stimulus_id)
+    total_count = len(
+        _study_image_urls(request, study, include_completed=True)
+    )
+    if limit > 0:
+        urls = urls[:limit]
     return JsonResponse({
         'study_id': study.id,
         'study_name': study.name,
         'cache_name': f'iqa-study-images-{study.id}-v1',
-        'image_count': len(urls),
+        'image_count': total_count,
+        'returned_count': len(urls),
         'urls': urls,
     })
 
