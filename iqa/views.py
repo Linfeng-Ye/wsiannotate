@@ -1,4 +1,6 @@
 import csv
+import hashlib
+import json
 import random
 import string
 
@@ -360,6 +362,162 @@ def _evaluation_url(study, stimulus_id):
     )
 
 
+def _local_seed(*parts) -> int:
+    raw = ':'.join(str(part) for part in parts)
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return int(digest[:16], 16)
+
+
+def _local_swap(study, user, stimulus) -> bool:
+    return bool(
+        _local_seed(
+            'local-swap', study.id, user.id,
+            user.username, stimulus.id,
+        ) % 2
+    )
+
+
+def _local_ordered_stimuli(study, user):
+    if study.mode == Study.MODE_MOS:
+        stimuli = list(
+            study.mos_stimuli.select_related(
+                'image', 'reference',
+            ).order_by('order', 'id')
+        )
+    else:
+        stimuli = list(
+            study.pair_stimuli.select_related(
+                'image_a', 'image_b',
+                'reference_a', 'reference_b',
+            ).order_by('order', 'id')
+        )
+
+    if study.sampler == Study.SAMPLER_RANDOM:
+        rng = random.Random(
+            _local_seed(
+                'local-sequence', study.id,
+                user.id, user.username,
+            )
+        )
+        rng.shuffle(stimuli)
+    return stimuli
+
+
+def _assignment_hash(study, items):
+    payload = {
+        'study_id': study.id,
+        'mode': study.mode,
+        'sampler': study.sampler,
+        'items': [
+            {
+                'stimulus_id': item['stimulus_id'],
+                'index': item['index'],
+                'swap': item.get('swap'),
+                'image_a_url': item.get('image_a_url'),
+                'image_b_url': item.get('image_b_url'),
+                'test_image_url': item.get('test_image_url'),
+                'reference_url': item.get('reference_url'),
+            }
+            for item in items
+        ],
+    }
+    raw = json.dumps(
+        payload, sort_keys=True, separators=(',', ':'),
+    )
+    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
+
+
+def _local_pair_reference_url(ref_a_url, ref_b_url):
+    if ref_a_url and ref_b_url and ref_a_url == ref_b_url:
+        return ref_a_url
+    return ref_a_url or ref_b_url
+
+
+def _local_assignment_payload(request, study):
+    items = []
+    stimuli = _local_ordered_stimuli(study, request.user)
+
+    if study.mode == Study.MODE_MOS:
+        for index, stimulus in enumerate(stimuli):
+            ref_url = _image_url(request, stimulus.reference)
+            items.append({
+                'stimulus_id': stimulus.id,
+                'index': index,
+                'mode': Study.MODE_MOS,
+                'prompt': study.prompt,
+                'test_image_url': _image_url(
+                    request, stimulus.image,
+                ),
+                'reference_url': ref_url,
+            })
+    else:
+        for index, stimulus in enumerate(stimuli):
+            swap = _local_swap(study, request.user, stimulus)
+            image_a_url = _image_url(request, stimulus.image_a)
+            image_b_url = _image_url(request, stimulus.image_b)
+            ref_a_url = _image_url(request, stimulus.reference_a)
+            ref_b_url = _image_url(request, stimulus.reference_b)
+            if swap:
+                left_url = image_b_url
+                right_url = image_a_url
+                left_ref_url = ref_b_url
+                right_ref_url = ref_a_url
+            else:
+                left_url = image_a_url
+                right_url = image_b_url
+                left_ref_url = ref_a_url
+                right_ref_url = ref_b_url
+
+            items.append({
+                'stimulus_id': stimulus.id,
+                'index': index,
+                'mode': Study.MODE_2AFC,
+                'prompt': study.prompt,
+                'image_a_url': image_a_url,
+                'image_b_url': image_b_url,
+                'reference_url': _local_pair_reference_url(
+                    ref_a_url, ref_b_url,
+                ),
+                'reference_a_url': ref_a_url,
+                'reference_b_url': ref_b_url,
+                'swap': swap,
+                'was_swapped': swap,
+                'display_image_left_url': left_url,
+                'display_image_right_url': right_url,
+                'display_reference_left_url': left_ref_url,
+                'display_reference_right_url': right_ref_url,
+                'canonical_image_a_url': image_a_url,
+                'canonical_image_b_url': image_b_url,
+                'canonical_reference_a_url': ref_a_url,
+                'canonical_reference_b_url': ref_b_url,
+            })
+
+    assignment_hash = _assignment_hash(study, items)
+    return {
+        'study_id': study.id,
+        'study_name': study.name,
+        'mode': study.mode,
+        'sampler': study.sampler,
+        'prompt': study.prompt,
+        'image_sizing': study.image_sizing,
+        'image_scale_factor': study.image_scale_factor,
+        'zoom_enabled': study.zoom_enabled,
+        'zoom_factor': study.zoom_factor,
+        'scale_min': study.scale_min,
+        'scale_max': study.scale_max,
+        'scale_min_label': study.scale_min_label,
+        'scale_max_label': study.scale_max_label,
+        'mos_use_textbox': study.mos_use_textbox,
+        'pair_shared_ref_layout': study.pair_shared_ref_layout,
+        'user_id': request.user.id,
+        'user': request.user.username,
+        'assignment_hash': assignment_hash,
+        'assignment_version': assignment_hash[:16],
+        'num_items': len(items),
+        'items': items,
+    }
+
+
 def login_redirect(request):
     return redirect('iqa:home')
 
@@ -445,6 +603,24 @@ def study_done(request, study_id):
         {
             'study': study,
             'can_go_previous': _can_go_previous(request, study),
+        },
+    )
+
+
+@login_required
+def local_assignment(request, study_id):
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    return JsonResponse(_local_assignment_payload(request, study))
+
+
+@login_required
+def local_annotation(request, study_id):
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    return render(
+        request,
+        'iqa/local_annotation.html',
+        {
+            'study': study,
         },
     )
 

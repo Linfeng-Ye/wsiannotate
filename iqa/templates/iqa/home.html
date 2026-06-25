@@ -38,6 +38,11 @@
                     {% endif %}
                 </button>
             </form>
+            <a href="{% url 'iqa:local_annotation' study.id %}"
+               class="btn"
+               style="background:#005f73;color:#fff;">
+                Start Low-Latency Local Mode
+            </a>
             {% if study.allow_self_export %}
             <a href="{% url 'iqa:export_own_csv' study.id %}" class="btn" style="background:#28a745;color:#fff;">Export My Responses</a>
             {% endif %}

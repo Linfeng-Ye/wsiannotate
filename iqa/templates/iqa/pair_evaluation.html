@@ -64,7 +64,9 @@
              tabindex="0"
              aria-label="Choose Image A">
             <img src="{{ img_a.fname.url }}"
-                 alt="Image A" class="eval-image">
+                 alt="Image A" class="eval-image"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image A">
         </div>
     </div>
     {% if shared_ref %}
@@ -72,7 +74,9 @@
         <div class="image-label">Reference</div>
         <div class="image-wrapper">
             <img src="{{ shared_ref.fname.url }}"
-                 alt="Reference image" class="eval-image">
+                 alt="Reference image" class="eval-image"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Reference">
         </div>
     </div>
     {% endif %}
@@ -84,7 +88,9 @@
              tabindex="0"
              aria-label="Choose Image B">
             <img src="{{ img_b.fname.url }}"
-                 alt="Image B" class="eval-image">
+                 alt="Image B" class="eval-image"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image B">
         </div>
     </div>
 </div>

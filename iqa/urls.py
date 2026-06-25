@@ -41,6 +41,16 @@ urlpatterns = [
         name='study_done',
     ),
     path(
+        'study/<int:study_id>/local-assignment/',
+        views.local_assignment,
+        name='local_assignment',
+    ),
+    path(
+        'study/<int:study_id>/local/',
+        views.local_annotation,
+        name='local_annotation',
+    ),
+    path(
         'study/<int:study_id>/preload-manifest/',
         views.preload_manifest,
         name='preload_manifest',

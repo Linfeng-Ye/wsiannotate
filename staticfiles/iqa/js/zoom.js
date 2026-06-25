@@ -1,99 +1,254 @@
-document.addEventListener('DOMContentLoaded', function() {
+(function() {
     'use strict';
-    var root = document.querySelector('[data-zoom-factor]');
-    if (!root) return;
-    var factor =
-        parseFloat(root.dataset.zoomFactor) || 2;
-    var images =
-        document.querySelectorAll('.eval-image');
-    if (!images.length) return;
 
-    images.forEach(function(img) {
+    var MIN_PREVIEW_SIDE = 120;
+    var MAX_PREVIEW_SIDE = 280;
+    var MIN_LENS_SIDE = 24;
+    var MAX_LENS_SIDE = 80;
+
+    function factorFor(root) {
+        var source = root && root.closest
+            ? root.closest('[data-zoom-factor]')
+            : null;
+        if (!source) {
+            source = document.querySelector('[data-zoom-factor]');
+        }
+        return parseFloat(source && source.dataset.zoomFactor) || 2;
+    }
+
+    function ensureZoomNodes(img) {
         var wrapper = img.closest('.image-wrapper');
-        if (!wrapper) return;
+        if (!wrapper) return null;
         wrapper.style.position = 'relative';
-        var ov = document.createElement('div');
-        ov.className = 'zoom-overlay';
-        wrapper.appendChild(ov);
-        var src = document.createElement('div');
-        src.className = 'zoom-source-rect';
-        wrapper.appendChild(src);
-        img._zoomOv = ov;
-        img._zoomSrc = src;
-        img._zoomWrap = wrapper;
-    });
 
-    function show(relX, relY) {
-        images.forEach(function(img) {
-            var ov = img._zoomOv;
-            var src = img._zoomSrc;
-            if (!ov || !src) return;
-            var ir = img.getBoundingClientRect();
-            var wr = img._zoomWrap
-                .getBoundingClientRect();
-            var iw = ir.width, ih = ir.height;
-            var oL = ir.left - wr.left;
-            var oT = ir.top - wr.top;
-            var ow = Math.round(iw / 3);
-            var oh = Math.round(ih / 3);
+        var overlay = wrapper.querySelector(':scope > .zoom-overlay');
+        if (!overlay) {
+            overlay = document.createElement('div');
+            overlay.className = 'zoom-overlay';
+            wrapper.appendChild(overlay);
+        }
 
-            ov.style.width = ow + 'px';
-            ov.style.height = oh + 'px';
-            ov.style.backgroundImage =
-                'url("' + img.src + '")';
-            ov.style.backgroundSize =
-                (iw * factor) + 'px '
-                + (ih * factor) + 'px';
+        var source = wrapper.querySelector(':scope > .zoom-source-rect');
+        if (!source) {
+            source = document.createElement('div');
+            source.className = 'zoom-source-rect';
+            wrapper.appendChild(source);
+        }
 
-            var bx = ow / 2 - relX * iw * factor;
-            var by = oh / 2 - relY * ih * factor;
-            bx = Math.min(
-                0, Math.max(bx, ow - iw * factor)
-            );
-            by = Math.min(
-                0, Math.max(by, oh - ih * factor)
-            );
-            ov.style.backgroundPosition =
-                bx + 'px ' + by + 'px';
+        return {
+            wrapper: wrapper,
+            overlay: overlay,
+            source: source
+        };
+    }
 
-            var left = (relX < 0.5)
-                ? oL + iw - ow : oL;
-            var top = (relY < 0.5)
-                ? oT + ih - oh : oT;
-            ov.style.left = left + 'px';
-            ov.style.top = top + 'px';
-            ov.style.display = 'block';
+    function clampUnit(value) {
+        return Math.max(0, Math.min(1, value));
+    }
 
-            var srcW = ow / factor;
-            var srcH = oh / factor;
-            var srcL = oL + (-bx) / factor;
-            var srcT = oT + (-by) / factor;
-            src.style.width = srcW + 'px';
-            src.style.height = srcH + 'px';
-            src.style.left = srcL + 'px';
-            src.style.top = srcT + 'px';
-            src.style.display = 'block';
+    function clampRange(value, min, max) {
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function clampPosition(value, min, max) {
+        if (max < min) {
+            return min + (max - min) / 2;
+        }
+        return Math.max(min, Math.min(max, value));
+    }
+
+    function displayedImageBaseSide(img) {
+        var rect = img.getBoundingClientRect();
+        if (!rect.width || !rect.height) return 0;
+        return Math.min(rect.width, rect.height);
+    }
+
+    function previewSideForImage(img) {
+        var baseSide = displayedImageBaseSide(img);
+        if (!baseSide) return MIN_PREVIEW_SIDE;
+        return clampRange(
+            Math.round(baseSide / 3),
+            MIN_PREVIEW_SIDE,
+            MAX_PREVIEW_SIDE
+        );
+    }
+
+    function previewSideForImages(images) {
+        var sides = images.map(displayedImageBaseSide).filter(function(side) {
+            return side > 0;
+        });
+        if (!sides.length) return MIN_PREVIEW_SIDE;
+        return clampRange(
+            Math.round(Math.min.apply(null, sides) / 3),
+            MIN_PREVIEW_SIDE,
+            MAX_PREVIEW_SIDE
+        );
+    }
+
+    function lensSideForPreview(previewSide) {
+        return clampRange(
+            Math.round(previewSide / 4),
+            MIN_LENS_SIDE,
+            MAX_LENS_SIDE
+        );
+    }
+
+    function relativePoint(img, event) {
+        var rect = img.getBoundingClientRect();
+        if (!rect.width || !rect.height) {
+            return {x: 0.5, y: 0.5};
+        }
+        return {
+            x: clampUnit((event.clientX - rect.left) / rect.width),
+            y: clampUnit((event.clientY - rect.top) / rect.height)
+        };
+    }
+
+    function hideImage(img) {
+        var nodes = img._zoomNodes;
+        if (!nodes) return;
+        nodes.overlay.style.display = 'none';
+        nodes.source.style.display = 'none';
+    }
+
+    function hideImages(images) {
+        images.forEach(hideImage);
+    }
+
+    function showImage(img, factor, point, previewSize) {
+        var nodes = img._zoomNodes || ensureZoomNodes(img);
+        if (!nodes) return;
+        img._zoomNodes = nodes;
+
+        var imageRect = img.getBoundingClientRect();
+        if (!imageRect.width || !imageRect.height) return;
+
+        var wrapperRect = nodes.wrapper.getBoundingClientRect();
+        var imageLeft = imageRect.left - wrapperRect.left;
+        var imageTop = imageRect.top - wrapperRect.top;
+        var overlaySide = previewSize || previewSideForImage(img);
+        var lensSide = lensSideForPreview(overlaySide);
+
+        nodes.overlay.style.width = overlaySide + 'px';
+        nodes.overlay.style.height = overlaySide + 'px';
+        nodes.overlay.style.backgroundImage = (
+            'url("' + (img.currentSrc || img.src) + '")'
+        );
+        nodes.overlay.style.backgroundSize = (
+            (imageRect.width * factor) + 'px '
+            + (imageRect.height * factor) + 'px'
+        );
+
+        var bgX = overlaySide / 2
+            - point.x * imageRect.width * factor;
+        var bgY = overlaySide / 2
+            - point.y * imageRect.height * factor;
+        bgX = Math.min(
+            0,
+            Math.max(bgX, overlaySide - imageRect.width * factor)
+        );
+        bgY = Math.min(
+            0,
+            Math.max(bgY, overlaySide - imageRect.height * factor)
+        );
+
+        nodes.overlay.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
+        nodes.overlay.style.left = clampPosition(
+            point.x < 0.5
+                ? imageLeft + imageRect.width - overlaySide
+                : imageLeft,
+            imageLeft,
+            imageLeft + imageRect.width - overlaySide
+        ) + 'px';
+        nodes.overlay.style.top = clampPosition(
+            point.y < 0.5
+                ? imageTop + imageRect.height - overlaySide
+                : imageTop,
+            imageTop,
+            imageTop + imageRect.height - overlaySide
+        ) + 'px';
+        nodes.overlay.style.display = 'block';
+
+        nodes.source.style.width = lensSide + 'px';
+        nodes.source.style.height = lensSide + 'px';
+        nodes.source.style.left = clampPosition(
+            imageLeft + point.x * imageRect.width - lensSide / 2,
+            imageLeft,
+            imageLeft + imageRect.width - lensSide
+        ) + 'px';
+        nodes.source.style.top = clampPosition(
+            imageTop + point.y * imageRect.height - lensSide / 2,
+            imageTop,
+            imageTop + imageRect.height - lensSide
+        ) + 'px';
+        nodes.source.style.display = 'block';
+    }
+
+    function attachImage(img, groupImages, factor) {
+        if (img.dataset.zoomAttached === '1') return;
+        var nodes = ensureZoomNodes(img);
+        if (!nodes) return;
+        img._zoomNodes = nodes;
+        img.dataset.zoomAttached = '1';
+
+        img.addEventListener('mousemove', function(event) {
+            var point = relativePoint(img, event);
+            if (groupImages && groupImages.length > 1) {
+                var previewSide = previewSideForImages(groupImages);
+                groupImages.forEach(function(groupImg) {
+                    showImage(
+                        groupImg,
+                        factor,
+                        point,
+                        previewSide
+                    );
+                });
+                return;
+            }
+            showImage(img, factor, point);
+        });
+
+        img.addEventListener('mouseleave', function() {
+            if (groupImages && groupImages.length > 1) {
+                hideImages(groupImages);
+                return;
+            }
+            hideImage(img);
+        });
+
+        img.addEventListener('error', function() {
+            hideImage(img);
         });
     }
 
-    function hide() {
+    function buildGroups(images) {
+        var groups = {};
         images.forEach(function(img) {
-            if (img._zoomOv)
-                img._zoomOv.style.display = 'none';
-            if (img._zoomSrc)
-                img._zoomSrc.style.display = 'none';
+            var group = img.dataset.syncZoomGroup;
+            if (!group) return;
+            if (!groups[group]) groups[group] = [];
+            groups[group].push(img);
         });
+        return groups;
     }
 
-    images.forEach(function(img) {
-        img.addEventListener('mousemove', function(e) {
-            var r = img.getBoundingClientRect();
-            var rx = (e.clientX - r.left) / r.width;
-            var ry = (e.clientY - r.top) / r.height;
-            rx = Math.max(0, Math.min(1, rx));
-            ry = Math.max(0, Math.min(1, ry));
-            show(rx, ry);
+    window.IQAInitZoom = function(root) {
+        root = root || document;
+        var factor = factorFor(root);
+        var images = Array.prototype.slice.call(
+            root.querySelectorAll('.eval-image')
+        );
+        var groups = buildGroups(images);
+
+        images.forEach(function(img) {
+            var groupName = img.dataset.syncZoomGroup;
+            var groupImages = groupName ? groups[groupName] : null;
+            attachImage(img, groupImages, factor);
         });
-        img.addEventListener('mouseleave', hide);
+    };
+
+    document.addEventListener('DOMContentLoaded', function() {
+        if (!document.querySelector('[data-zoom-factor]')) return;
+        window.IQAInitZoom(document);
     });
-});
+})();
