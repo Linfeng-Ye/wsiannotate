@@ -1,5 +1,9 @@
 # ADP CDN setup
 
+> **Legacy Cloudflare R2 workflow.** Current production images are stored in
+> S3 and delivered through CloudFront. See [`../DEPLOY.md`](../DEPLOY.md) for
+> the active upload and deployment instructions.
+
 This app can keep Django local for login, annotation, and checkpoints while
 serving ADP images from a CDN.
 

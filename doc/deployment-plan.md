@@ -98,13 +98,17 @@ through unchanged. So:
 
 ### 1.5 Container + health check
 
-- Add `/healthz` view (no auth, no DB query, returns 200 "ok") + URL.
+- Add `HealthCheckMiddleware` to answer `/healthz` before Host-header
+  validation (no auth, no DB query, returns 200 `ok`). App Runner sends its
+  private container IP as the probe Host, so a normal Django view would be
+  rejected by strict `ALLOWED_HOSTS` before URL routing.
 - `Dockerfile`: `python:3.12-slim`; install `requirements.txt`; copy app;
   `collectstatic --noinput` at build (with a dummy `DJANGO_SECRET_KEY`);
   non-root user; expose 8080.
-- `docker-entrypoint.sh`: `python manage.py migrate --noinput` then
+- `docker-entrypoint.sh`: acquire a PostgreSQL advisory lock, run Django
+  migrations, release the lock, then start
   `gunicorn iqa_site.wsgi --bind 0.0.0.0:8080 --workers 2 --timeout 60`.
-  (Single-instance service → migrate-on-boot is safe at this scale.)
+  This keeps rolling deploys safe when App Runner overlaps two instances.
 - Settings: append `.awsapprunner.com` support — `DJANGO_ALLOWED_HOSTS` and
   `DJANGO_CSRF_TRUSTED_ORIGINS` come from env, so this is config, not code.
 - Update `.env.example` with the new vars (`DATABASE_URL`, CDN media URL);

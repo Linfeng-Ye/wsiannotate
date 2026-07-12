@@ -55,8 +55,8 @@ docker buildx build --platform linux/amd64 --provenance=false --sbom=false \
   -t $ECR:latest --push .
 ```
 
-The container runs `python manage.py migrate` on boot, then gunicorn (2 workers)
-on port 8080. Health check: `GET /healthz` (answered before Django's Host-header
+The entrypoint serializes migrations with a PostgreSQL advisory lock, then runs
+gunicorn (2 workers) on port 8080. Health check: `GET /healthz` (answered before Django's Host-header
 validation by `iqa.middleware.HealthCheckMiddleware`, so App Runner's private-IP
 probe passes while `ALLOWED_HOSTS` stays strict for real traffic).
 
@@ -90,7 +90,8 @@ python scripts/bulk_load_supabase.py <fixture.json>  # fast bulk load a dump
 
 Manage studies and create annotator accounts via the Django admin
 (`/admin/`, using the privately shared staff account) or the
-bulk-create-users page.
+bulk-create-users page. Staff users also get a **Progress & exports** dashboard
+on the home page for per-annotator completion counts and CSV downloads.
 
 ## Local development
 
