@@ -41,24 +41,14 @@ urlpatterns = [
         name='study_done',
     ),
     path(
-        'study/<int:study_id>/local-assignment/',
-        views.local_assignment,
-        name='local_assignment',
+        'study/<int:study_id>/prefetch/',
+        views.prefetch,
+        name='prefetch',
     ),
     path(
-        'study/<int:study_id>/local/',
-        views.local_annotation,
-        name='local_annotation',
-    ),
-    path(
-        'study/<int:study_id>/preload-manifest/',
-        views.preload_manifest,
-        name='preload_manifest',
-    ),
-    path(
-        'preload-sw.js',
-        views.preload_service_worker,
-        name='preload_service_worker',
+        'prefetch-report/',
+        views.prefetch_report,
+        name='prefetch_report',
     ),
     path(
         'evaluate/mos/<int:study_id>/'
@@ -88,9 +78,19 @@ urlpatterns = [
         name='user_creation_results',
     ),
     path(
+        'annotators/',
+        views.annotator_progress,
+        name='annotator_progress',
+    ),
+    path(
         'responses/',
         views.view_responses,
         name='view_responses',
+    ),
+    path(
+        'responses/export-user/<int:user_id>/',
+        views.export_user_responses_csv,
+        name='export_user_csv',
     ),
     path(
         'responses/export/<int:study_id>/',

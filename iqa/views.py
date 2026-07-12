@@ -1,6 +1,6 @@
 import csv
-import hashlib
 import json
+import logging
 import random
 import string
 
@@ -12,129 +12,53 @@ from django.contrib.auth.decorators import (
     login_required, user_passes_test,
 )
 from django.contrib.auth.models import User
-from django.db.models import Count
+from django.db.models import Count, Max
 from django.http import HttpResponse, JsonResponse
 from django.urls import reverse
 from django.shortcuts import (
     get_object_or_404, redirect, render,
 )
-from django.views.decorators.http import require_POST
+from django.views.decorators.csrf import csrf_exempt
+from django.views.decorators.http import require_GET, require_POST
 
 from .forms import BulkUserCreationForm
 from .models import (
     Study, MOSStimulus, PairStimulus,
     MOSResponse, PairResponse,
 )
-from .samplers import get_next_stimulus, get_progress
+from .samplers import (
+    get_next_stimulus, get_progress, get_upcoming_stimuli,
+    ordered_stimulus_ids,
+)
+
+logger = logging.getLogger('iqa.prefetch')
+
+# How many upcoming trials to warm ahead of the annotator.
+PREFETCH_WINDOW = 8
+PREFETCH_MAX_IMAGES = 24
 
 
-PRELOAD_SW_JS = """
-const IQA_CACHE_PREFIX = 'iqa-study-images-';
-const IQA_CACHE_TTL_MS = 30 * 24 * 60 * 60 * 1000;
-const IQA_META_PATH = '/iqa/preload-cache-meta.json';
-let lastExpirySweep = 0;
+class _SafeCsvWriter:
+    """Escape cells that spreadsheet programs could execute as formulas."""
 
-self.addEventListener('install', function(event) {
-    event.waitUntil(self.skipWaiting());
-});
+    def __init__(self, response):
+        self.writer = csv.writer(response)
 
-self.addEventListener('activate', function(event) {
-    event.waitUntil(
-        Promise.all([
-            self.clients.claim(),
-            deleteExpiredCaches(true)
-        ])
-    );
-});
+    def writerow(self, row):
+        safe_row = []
+        for value in row:
+            text = '' if value is None else str(value)
+            if text.startswith(('=', '+', '-', '@', '\t', '\r')):
+                text = "'" + text
+            safe_row.append(text)
+        return self.writer.writerow(safe_row)
 
-function isStudyCache(cacheName) {
-    return cacheName.indexOf(IQA_CACHE_PREFIX) === 0;
-}
 
-function metadataRequest(cacheName) {
-    return new Request(
-        self.location.origin + IQA_META_PATH
-        + '?cache=' + encodeURIComponent(cacheName)
-    );
-}
-
-async function readMetadata(cacheName) {
-    var cache = await caches.open(cacheName);
-    var response = await cache.match(metadataRequest(cacheName));
-    if (!response) return null;
-    try {
-        return await response.clone().json();
-    } catch (err) {
-        return null;
-    }
-}
-
-function isExpired(metadata) {
-    if (!metadata) return false;
-    var expiresAt = metadata.expires_at;
-    if (!expiresAt && metadata.created_at) {
-        expiresAt = metadata.created_at + IQA_CACHE_TTL_MS;
-    }
-    if (!expiresAt) return true;
-    return Date.now() > expiresAt;
-}
-
-async function deleteExpiredCaches(force) {
-    var now = Date.now();
-    if (!force && now - lastExpirySweep < 60000) return;
-    lastExpirySweep = now;
-
-    var cacheNames = await caches.keys();
-    await Promise.all(cacheNames.map(async function(cacheName) {
-        if (!isStudyCache(cacheName)) return;
-        var metadata = await readMetadata(cacheName);
-        if (metadata && isExpired(metadata)) {
-            await caches.delete(cacheName);
-        }
-    }));
-}
-
-async function matchCachedImage(request, url) {
-    await deleteExpiredCaches(false);
-    var cacheNames = await caches.keys();
-    for (var i = 0; i < cacheNames.length; i += 1) {
-        var cacheName = cacheNames[i];
-        if (!isStudyCache(cacheName)) continue;
-
-        var metadata = await readMetadata(cacheName);
-        if (!metadata) continue;
-        if (isExpired(metadata)) {
-            await caches.delete(cacheName);
-            continue;
-        }
-
-        var cache = await caches.open(cacheName);
-        var cached = await cache.match(request);
-        if (cached) return cached;
-
-        cached = await cache.match(url.href);
-        if (cached) return cached;
-    }
-    return null;
-}
-
-self.addEventListener('fetch', function(event) {
-    if (event.request.method !== 'GET') return;
-
-    var url = new URL(event.request.url);
-    var isMedia = url.pathname.indexOf('/media/') === 0;
-    var isCdnImage = url.pathname.indexOf('/images/') === 0;
-    var isImage = event.request.destination === 'image';
-    if (!isMedia && !isCdnImage && !isImage) return;
-
-    event.respondWith(
-        matchCachedImage(event.request, url).then(function(cached) {
-            if (cached) return cached;
-            return fetch(event.request);
-        })
-    );
-});
-""".strip()
+def _download_filename(value):
+    return ''.join(
+        char if char.isalnum() or char in '._-' else '_'
+        for char in str(value)
+    ) or 'responses'
 
 
 def _image_url(request, image):
@@ -150,72 +74,43 @@ def _add_image_url(request, urls, seen, image):
         seen.add(url)
 
 
-def _ordered_stimuli_for_preload(study, user, include_completed=False):
-    if study.mode == Study.MODE_MOS:
-        stimuli = study.mos_stimuli.select_related(
-            'image', 'reference',
-        )
-        if not include_completed:
-            done_ids = MOSResponse.objects.filter(
-                user=user, stimulus__study=study,
-            ).values_list('stimulus_id', flat=True)
-            stimuli = stimuli.exclude(id__in=done_ids)
-    else:
-        stimuli = study.pair_stimuli.select_related(
-            'image_a', 'image_b',
-            'reference_a', 'reference_b',
-        )
-        if not include_completed:
-            done_ids = PairResponse.objects.filter(
-                user=user, stimulus__study=study,
-            ).values_list('stimulus_id', flat=True)
-            stimuli = stimuli.exclude(id__in=done_ids)
-
-    if study.sampler == Study.SAMPLER_LEAST_EVAL:
-        resp_related = (
-            'mosresponse'
-            if study.mode == Study.MODE_MOS else 'pairresponse'
-        )
-        return stimuli.annotate(
-            n=Count(resp_related),
-        ).order_by('n', 'order', 'id')
-    return stimuli.order_by('order', 'id')
-
-
-def _rotate_from_current(stimuli, current_stimulus_id):
-    if not current_stimulus_id:
-        return stimuli
-    stimulus_ids = [stimulus.id for stimulus in stimuli]
-    try:
-        start = stimulus_ids.index(int(current_stimulus_id))
-    except (ValueError, TypeError):
-        return stimuli
-    return stimuli[start:] + stimuli[:start]
-
-
-def _study_image_urls(
-    request, study, current_stimulus_id=None,
-    include_completed=False,
-):
+def _prefetch_image_urls(request, study, stimuli):
     urls = []
     seen = set()
-    stimuli = list(
-        _ordered_stimuli_for_preload(
-            study, request.user, include_completed=include_completed,
-        )
-    )
-    stimuli = _rotate_from_current(stimuli, current_stimulus_id)
-
     if study.mode == Study.MODE_MOS:
         for stimulus in stimuli:
-            _add_image_url(request, urls, seen, stimulus.image)
-            _add_image_url(request, urls, seen, stimulus.reference)
+            trial_urls = []
+            trial_seen = set(seen)
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.image,
+            )
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.reference,
+            )
+            if len(urls) + len(trial_urls) > PREFETCH_MAX_IMAGES:
+                break
+            urls.extend(trial_urls)
+            seen.update(trial_urls)
     else:
         for stimulus in stimuli:
-            _add_image_url(request, urls, seen, stimulus.reference_a)
-            _add_image_url(request, urls, seen, stimulus.reference_b)
-            _add_image_url(request, urls, seen, stimulus.image_a)
-            _add_image_url(request, urls, seen, stimulus.image_b)
+            trial_urls = []
+            trial_seen = set(seen)
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.reference_a,
+            )
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.reference_b,
+            )
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.image_a,
+            )
+            _add_image_url(
+                request, trial_urls, trial_seen, stimulus.image_b,
+            )
+            if len(urls) + len(trial_urls) > PREFETCH_MAX_IMAGES:
+                break
+            urls.extend(trial_urls)
+            seen.update(trial_urls)
     return urls
 
 
@@ -265,12 +160,6 @@ def _answered_stimulus_ids(study, user):
     )
 
 
-def _ordered_stimuli_for_previous(study):
-    if study.mode == Study.MODE_MOS:
-        return study.mos_stimuli.order_by('order', 'id')
-    return study.pair_stimuli.order_by('order', 'id')
-
-
 def _previous_answered_from_database(
     study, user, current_stimulus_id=None,
     exclude_ids=None,
@@ -282,10 +171,7 @@ def _previous_answered_from_database(
     except (TypeError, ValueError):
         current_stimulus_id = None
 
-    ordered_ids = list(
-        _ordered_stimuli_for_previous(study)
-        .values_list('id', flat=True)
-    )
+    ordered_ids = ordered_stimulus_ids(study, user)
     if current_stimulus_id in ordered_ids:
         candidates = ordered_ids[
             :ordered_ids.index(current_stimulus_id)
@@ -360,162 +246,6 @@ def _evaluation_url(study, stimulus_id):
             'stimulus_id': stimulus_id,
         },
     )
-
-
-def _local_seed(*parts) -> int:
-    raw = ':'.join(str(part) for part in parts)
-    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
-    return int(digest[:16], 16)
-
-
-def _local_swap(study, user, stimulus) -> bool:
-    return bool(
-        _local_seed(
-            'local-swap', study.id, user.id,
-            user.username, stimulus.id,
-        ) % 2
-    )
-
-
-def _local_ordered_stimuli(study, user):
-    if study.mode == Study.MODE_MOS:
-        stimuli = list(
-            study.mos_stimuli.select_related(
-                'image', 'reference',
-            ).order_by('order', 'id')
-        )
-    else:
-        stimuli = list(
-            study.pair_stimuli.select_related(
-                'image_a', 'image_b',
-                'reference_a', 'reference_b',
-            ).order_by('order', 'id')
-        )
-
-    if study.sampler == Study.SAMPLER_RANDOM:
-        rng = random.Random(
-            _local_seed(
-                'local-sequence', study.id,
-                user.id, user.username,
-            )
-        )
-        rng.shuffle(stimuli)
-    return stimuli
-
-
-def _assignment_hash(study, items):
-    payload = {
-        'study_id': study.id,
-        'mode': study.mode,
-        'sampler': study.sampler,
-        'items': [
-            {
-                'stimulus_id': item['stimulus_id'],
-                'index': item['index'],
-                'swap': item.get('swap'),
-                'image_a_url': item.get('image_a_url'),
-                'image_b_url': item.get('image_b_url'),
-                'test_image_url': item.get('test_image_url'),
-                'reference_url': item.get('reference_url'),
-            }
-            for item in items
-        ],
-    }
-    raw = json.dumps(
-        payload, sort_keys=True, separators=(',', ':'),
-    )
-    return hashlib.sha256(raw.encode('utf-8')).hexdigest()
-
-
-def _local_pair_reference_url(ref_a_url, ref_b_url):
-    if ref_a_url and ref_b_url and ref_a_url == ref_b_url:
-        return ref_a_url
-    return ref_a_url or ref_b_url
-
-
-def _local_assignment_payload(request, study):
-    items = []
-    stimuli = _local_ordered_stimuli(study, request.user)
-
-    if study.mode == Study.MODE_MOS:
-        for index, stimulus in enumerate(stimuli):
-            ref_url = _image_url(request, stimulus.reference)
-            items.append({
-                'stimulus_id': stimulus.id,
-                'index': index,
-                'mode': Study.MODE_MOS,
-                'prompt': study.prompt,
-                'test_image_url': _image_url(
-                    request, stimulus.image,
-                ),
-                'reference_url': ref_url,
-            })
-    else:
-        for index, stimulus in enumerate(stimuli):
-            swap = _local_swap(study, request.user, stimulus)
-            image_a_url = _image_url(request, stimulus.image_a)
-            image_b_url = _image_url(request, stimulus.image_b)
-            ref_a_url = _image_url(request, stimulus.reference_a)
-            ref_b_url = _image_url(request, stimulus.reference_b)
-            if swap:
-                left_url = image_b_url
-                right_url = image_a_url
-                left_ref_url = ref_b_url
-                right_ref_url = ref_a_url
-            else:
-                left_url = image_a_url
-                right_url = image_b_url
-                left_ref_url = ref_a_url
-                right_ref_url = ref_b_url
-
-            items.append({
-                'stimulus_id': stimulus.id,
-                'index': index,
-                'mode': Study.MODE_2AFC,
-                'prompt': study.prompt,
-                'image_a_url': image_a_url,
-                'image_b_url': image_b_url,
-                'reference_url': _local_pair_reference_url(
-                    ref_a_url, ref_b_url,
-                ),
-                'reference_a_url': ref_a_url,
-                'reference_b_url': ref_b_url,
-                'swap': swap,
-                'was_swapped': swap,
-                'display_image_left_url': left_url,
-                'display_image_right_url': right_url,
-                'display_reference_left_url': left_ref_url,
-                'display_reference_right_url': right_ref_url,
-                'canonical_image_a_url': image_a_url,
-                'canonical_image_b_url': image_b_url,
-                'canonical_reference_a_url': ref_a_url,
-                'canonical_reference_b_url': ref_b_url,
-            })
-
-    assignment_hash = _assignment_hash(study, items)
-    return {
-        'study_id': study.id,
-        'study_name': study.name,
-        'mode': study.mode,
-        'sampler': study.sampler,
-        'prompt': study.prompt,
-        'image_sizing': study.image_sizing,
-        'image_scale_factor': study.image_scale_factor,
-        'zoom_enabled': study.zoom_enabled,
-        'zoom_factor': study.zoom_factor,
-        'scale_min': study.scale_min,
-        'scale_max': study.scale_max,
-        'scale_min_label': study.scale_min_label,
-        'scale_max_label': study.scale_max_label,
-        'mos_use_textbox': study.mos_use_textbox,
-        'pair_shared_ref_layout': study.pair_shared_ref_layout,
-        'user_id': request.user.id,
-        'user': request.user.username,
-        'assignment_hash': assignment_hash,
-        'assignment_version': assignment_hash[:16],
-        'num_items': len(items),
-        'items': items,
-    }
 
 
 def login_redirect(request):
@@ -608,56 +338,61 @@ def study_done(request, study_id):
 
 
 @login_required
-def local_assignment(request, study_id):
+@require_GET
+def prefetch(request, study_id):
+    """Return CDN image URLs for the next few unanswered trials.
+
+    Small JSON manifest (metadata only) used by prefetch.js to warm the
+    browser HTTP cache a few trials ahead of the annotator.
+    """
     study = get_object_or_404(Study, id=study_id, is_active=True)
-    return JsonResponse(_local_assignment_payload(request, study))
-
-
-@login_required
-def local_annotation(request, study_id):
-    study = get_object_or_404(Study, id=study_id, is_active=True)
-    return render(
-        request,
-        'iqa/local_annotation.html',
-        {
-            'study': study,
-        },
-    )
-
-
-@login_required
-def preload_manifest(request, study_id):
-    study = get_object_or_404(Study, id=study_id, is_active=True)
-    current_stimulus_id = request.GET.get('current')
     try:
-        limit = int(request.GET.get('limit', '0'))
+        current_id = int(request.GET.get('current'))
     except (TypeError, ValueError):
-        limit = 0
-    urls = _study_image_urls(request, study, current_stimulus_id)
-    total_count = len(
-        _study_image_urls(request, study, include_completed=True)
+        current_id = None
+    upcoming = get_upcoming_stimuli(
+        study, request.user, current_id, PREFETCH_WINDOW,
     )
-    if limit > 0:
-        urls = urls[:limit]
-    return JsonResponse({
-        'study_id': study.id,
-        'study_name': study.name,
-        'cache_name': f'iqa-study-images-{study.id}-v1',
-        'image_count': total_count,
-        'returned_count': len(urls),
-        'urls': urls,
-    })
+    urls = _prefetch_image_urls(request, study, upcoming)
+    return JsonResponse({'images': urls})
 
 
+@csrf_exempt
 @login_required
-def preload_service_worker(request):
-    response = HttpResponse(
-        PRELOAD_SW_JS,
-        content_type='application/javascript',
+@require_POST
+def prefetch_report(request):
+    """Log prefetch success/failure counts sent via navigator.sendBeacon.
+
+    Best-effort metrics only; never writes to the database. CSRF-exempt
+    because sendBeacon cannot attach the CSRF token, and the endpoint has
+    no side effects beyond logging.
+    """
+    if request.META.get('CONTENT_LENGTH', '').isdigit():
+        if int(request.META['CONTENT_LENGTH']) > 2048:
+            return HttpResponse(status=204)
+    try:
+        payload = json.loads((request.body or b'').decode('utf-8') or '{}')
+    except (ValueError, UnicodeDecodeError):
+        payload = {}
+    if not isinstance(payload, dict):
+        payload = {}
+
+    def bounded_int(value, maximum):
+        try:
+            return max(0, min(int(value), maximum))
+        except (TypeError, ValueError):
+            return 0
+
+    study_id = bounded_int(payload.get('study'), 2_147_483_647)
+    if not Study.objects.filter(id=study_id, is_active=True).exists():
+        study_id = 0
+    ok = bounded_int(payload.get('ok'), 24)
+    fail = bounded_int(payload.get('fail'), 24)
+    logger.info(
+        'prefetch report user_id=%d study_id=%d ok=%d fail=%d',
+        request.user.id, study_id, ok, fail,
     )
-    response['Service-Worker-Allowed'] = '/'
-    response['Cache-Control'] = 'no-cache'
-    return response
+    return HttpResponse(status=204)
 
 
 @login_required
@@ -1024,11 +759,11 @@ def export_own_responses_csv(request, study_id: int):
         Study, id=study_id, allow_self_export=True,
     )
     response = HttpResponse(content_type='text/csv')
-    fname = study.name.replace(' ', '_')
+    fname = _download_filename(study.name)
     response['Content-Disposition'] = (
         f'attachment; filename="{fname}_my_responses.csv"'
     )
-    writer = csv.writer(response)
+    writer = _SafeCsvWriter(response)
 
     if study.mode == Study.MODE_MOS:
         writer.writerow([
@@ -1095,11 +830,11 @@ def export_own_responses_csv(request, study_id: int):
 def export_responses_csv(request, study_id):
     study = get_object_or_404(Study, id=study_id)
     response = HttpResponse(content_type='text/csv')
-    fname = study.name.replace(' ', '_')
+    fname = _download_filename(study.name)
     response['Content-Disposition'] = (
         f'attachment; filename="{fname}_responses.csv"'
     )
-    writer = csv.writer(response)
+    writer = _SafeCsvWriter(response)
 
     if study.mode == Study.MODE_MOS:
         writer.writerow([
@@ -1158,5 +893,105 @@ def export_responses_csv(request, study_id):
                 r.shown_reference_a,
                 r.shown_reference_b,
             ])
+
+    return response
+
+
+@staff_member_required
+def annotator_progress(request):
+    """Staff dashboard: every user's progress across all studies."""
+    studies = list(Study.objects.all().order_by('id'))
+    users = list(
+        User.objects.filter(is_active=True).order_by('username')
+    )
+    totals = {s.id: s.stimulus_count() for s in studies}
+
+    # done count + last activity per (user, study), across both modes.
+    done = {}
+    for model in (PairResponse, MOSResponse):
+        for row in model.objects.values(
+            'user_id', 'stimulus__study_id',
+        ).annotate(n=Count('id'), last=Max('timestamp')):
+            key = (row['user_id'], row['stimulus__study_id'])
+            done[key] = (row['n'], row['last'])
+
+    rows = []
+    for user in users:
+        cells = []
+        overall_done = 0
+        last_activity = None
+        for study in studies:
+            n, last = done.get((user.id, study.id), (0, None))
+            total = totals[study.id]
+            overall_done += n
+            if last and (last_activity is None or last > last_activity):
+                last_activity = last
+            cells.append({
+                'study': study,
+                'done': n,
+                'total': total,
+                'pct': round(100 * n / total) if total else 0,
+                'started': n > 0,
+                'completed': total > 0 and n >= total,
+            })
+        rows.append({
+            'user': user,
+            'cells': cells,
+            'overall_done': overall_done,
+            'last_activity': last_activity,
+        })
+
+    return render(
+        request, 'iqa/annotator_progress.html', {
+            'studies': studies,
+            'rows': rows,
+        },
+    )
+
+
+@staff_member_required
+def export_user_responses_csv(request, user_id):
+    """Download one annotator's responses across all studies as CSV."""
+    user = get_object_or_404(User, id=user_id)
+    response = HttpResponse(content_type='text/csv')
+    response['Content-Disposition'] = (
+        'attachment; filename="'
+        f'{_download_filename(user.username)}_responses.csv"'
+    )
+    writer = _SafeCsvWriter(response)
+    writer.writerow([
+        'study', 'mode', 'stimulus_order', 'timestamp',
+        'choice', 'score', 'display_choice', 'was_swapped',
+        'image_a', 'image_b', 'reference_a', 'reference_b',
+        'shown_image_a', 'shown_image_b',
+        'shown_reference_a', 'shown_reference_b',
+    ])
+
+    for r in PairResponse.objects.filter(user=user).select_related(
+        'stimulus__study', 'stimulus__image_a', 'stimulus__image_b',
+        'stimulus__reference_a', 'stimulus__reference_b',
+    ).order_by('stimulus__study_id', 'stimulus__order'):
+        st = r.stimulus
+        writer.writerow([
+            st.study.name, '2AFC', st.order, r.timestamp.isoformat(),
+            r.choice, '', r.display_choice, r.was_swapped,
+            str(st.image_a.fname), str(st.image_b.fname),
+            str(st.reference_a.fname) if st.reference_a else '',
+            str(st.reference_b.fname) if st.reference_b else '',
+            r.shown_image_a, r.shown_image_b,
+            r.shown_reference_a, r.shown_reference_b,
+        ])
+
+    for r in MOSResponse.objects.filter(user=user).select_related(
+        'stimulus__study', 'stimulus__image', 'stimulus__reference',
+    ).order_by('stimulus__study_id', 'stimulus__order'):
+        st = r.stimulus
+        writer.writerow([
+            st.study.name, 'MOS', st.order, r.timestamp.isoformat(),
+            '', r.score, '', '',
+            str(st.image.fname), '',
+            str(st.reference.fname) if st.reference else '', '',
+            '', '', '', '',
+        ])
 
     return response

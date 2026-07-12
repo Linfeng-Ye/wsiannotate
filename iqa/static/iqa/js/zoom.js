@@ -1,10 +1,12 @@
 (function() {
     'use strict';
 
-    var MIN_PREVIEW_SIDE = 120;
+    var DEFAULT_FIELD_SIDE = 80;
+    var MIN_FIELD_SIDE = 40;
+    var MAX_FIELD_SIDE = 120;
+    var MIN_PREVIEW_SIDE = 80;
     var MAX_PREVIEW_SIDE = 280;
-    var MIN_LENS_SIDE = 24;
-    var MAX_LENS_SIDE = 80;
+    var lastPointer = null;
 
     function factorFor(root) {
         var source = root && root.closest
@@ -16,16 +18,39 @@
         return parseFloat(source && source.dataset.zoomFactor) || 2;
     }
 
+    function fieldSideFor(root) {
+        var control = document.querySelector('[data-zoom-field-slider]');
+        var value = control
+            ? parseInt(control.dataset.value, 10)
+            : DEFAULT_FIELD_SIDE;
+        return clampRange(
+            value || DEFAULT_FIELD_SIDE,
+            MIN_FIELD_SIDE,
+            MAX_FIELD_SIDE
+        );
+    }
+
     function ensureZoomNodes(img) {
         var wrapper = img.closest('.image-wrapper');
         if (!wrapper) return null;
         wrapper.style.position = 'relative';
 
-        var overlay = wrapper.querySelector(':scope > .zoom-overlay');
+        var host = zoomPreviewHost(img, wrapper);
+        if (!host) return null;
+
+        var slot = img._zoomSlot;
+        if (!slot) {
+            slot = document.createElement('div');
+            slot.className = 'zoom-preview-slot';
+            host.appendChild(slot);
+            img._zoomSlot = slot;
+        }
+
+        var overlay = slot.querySelector(':scope > .zoom-overlay');
         if (!overlay) {
             overlay = document.createElement('div');
             overlay.className = 'zoom-overlay';
-            wrapper.appendChild(overlay);
+            slot.appendChild(overlay);
         }
 
         var source = wrapper.querySelector(':scope > .zoom-source-rect');
@@ -37,9 +62,38 @@
 
         return {
             wrapper: wrapper,
+            slot: slot,
             overlay: overlay,
             source: source
         };
+    }
+
+    function zoomPreviewHost(img, wrapper) {
+        var layout = img.closest('.pair-shared-ref-layout, .mos-layout');
+        if (layout) {
+            var next = layout.nextElementSibling;
+            if (!next || !next.classList.contains('zoom-preview-tray')) {
+                next = document.createElement('div');
+                next.className = 'zoom-preview-tray';
+                layout.insertAdjacentElement('afterend', next);
+            }
+            return next;
+        }
+
+        var imageArea = img.closest('.pair-images-area');
+        if (imageArea) {
+            var tray = imageArea.querySelector(':scope > .zoom-preview-tray');
+            if (!tray) {
+                tray = document.createElement('div');
+                tray.className = 'zoom-preview-tray';
+                imageArea.appendChild(tray);
+            }
+            return tray;
+        }
+
+        var parent = wrapper.parentNode;
+        if (!parent) return null;
+        return parent;
     }
 
     function clampUnit(value) {
@@ -63,33 +117,34 @@
         return Math.min(rect.width, rect.height);
     }
 
-    function previewSideForImage(img) {
+    function previewSideForImage(img, factor, fieldSide) {
         var baseSide = displayedImageBaseSide(img);
-        if (!baseSide) return MIN_PREVIEW_SIDE;
+        if (!baseSide) return Math.round(fieldSide * factor);
         return clampRange(
-            Math.round(baseSide / 3),
+            Math.round(fieldSide * factor),
             MIN_PREVIEW_SIDE,
-            MAX_PREVIEW_SIDE
+            Math.min(MAX_PREVIEW_SIDE, baseSide)
         );
     }
 
-    function previewSideForImages(images) {
+    function previewSideForImages(images, factor, fieldSide) {
         var sides = images.map(displayedImageBaseSide).filter(function(side) {
             return side > 0;
         });
-        if (!sides.length) return MIN_PREVIEW_SIDE;
+        if (!sides.length) return Math.round(fieldSide * factor);
         return clampRange(
-            Math.round(Math.min.apply(null, sides) / 3),
+            Math.round(fieldSide * factor),
             MIN_PREVIEW_SIDE,
-            MAX_PREVIEW_SIDE
+            Math.min(MAX_PREVIEW_SIDE, Math.min.apply(null, sides))
         );
     }
 
-    function lensSideForPreview(previewSide) {
+    function fieldSideForPreview(previewSide, factor, fieldSide, img) {
+        var baseSide = displayedImageBaseSide(img);
         return clampRange(
-            Math.round(previewSide / 4),
-            MIN_LENS_SIDE,
-            MAX_LENS_SIDE
+            Math.round(previewSide / factor),
+            MIN_FIELD_SIDE,
+            Math.min(MAX_FIELD_SIDE, baseSide || MAX_FIELD_SIDE, fieldSide)
         );
     }
 
@@ -109,13 +164,14 @@
         if (!nodes) return;
         nodes.overlay.style.display = 'none';
         nodes.source.style.display = 'none';
+        nodes.slot.style.minHeight = '';
     }
 
     function hideImages(images) {
         images.forEach(hideImage);
     }
 
-    function showImage(img, factor, point, previewSize) {
+    function showImage(img, factor, fieldSide, point, previewSize) {
         var nodes = img._zoomNodes || ensureZoomNodes(img);
         if (!nodes) return;
         img._zoomNodes = nodes;
@@ -126,9 +182,14 @@
         var wrapperRect = nodes.wrapper.getBoundingClientRect();
         var imageLeft = imageRect.left - wrapperRect.left;
         var imageTop = imageRect.top - wrapperRect.top;
-        var overlaySide = previewSize || previewSideForImage(img);
-        var lensSide = lensSideForPreview(overlaySide);
+        var overlaySide = previewSize || previewSideForImage(
+            img, factor, fieldSide
+        );
+        var lensSide = fieldSideForPreview(
+            overlaySide, factor, fieldSide, img
+        );
 
+        nodes.slot.style.minHeight = overlaySide + 'px';
         nodes.overlay.style.width = overlaySide + 'px';
         nodes.overlay.style.height = overlaySide + 'px';
         nodes.overlay.style.backgroundImage = (
@@ -153,20 +214,6 @@
         );
 
         nodes.overlay.style.backgroundPosition = bgX + 'px ' + bgY + 'px';
-        nodes.overlay.style.left = clampPosition(
-            point.x < 0.5
-                ? imageLeft + imageRect.width - overlaySide
-                : imageLeft,
-            imageLeft,
-            imageLeft + imageRect.width - overlaySide
-        ) + 'px';
-        nodes.overlay.style.top = clampPosition(
-            point.y < 0.5
-                ? imageTop + imageRect.height - overlaySide
-                : imageTop,
-            imageTop,
-            imageTop + imageRect.height - overlaySide
-        ) + 'px';
         nodes.overlay.style.display = 'block';
 
         nodes.source.style.width = lensSide + 'px';
@@ -193,22 +240,33 @@
 
         img.addEventListener('mousemove', function(event) {
             var point = relativePoint(img, event);
+            var fieldSide = fieldSideFor(img);
+            lastPointer = {
+                img: img,
+                groupImages: groupImages,
+                factor: factor,
+                point: point
+            };
             if (groupImages && groupImages.length > 1) {
-                var previewSide = previewSideForImages(groupImages);
+                var previewSide = previewSideForImages(
+                    groupImages, factor, fieldSide
+                );
                 groupImages.forEach(function(groupImg) {
                     showImage(
                         groupImg,
                         factor,
+                        fieldSide,
                         point,
                         previewSide
                     );
                 });
                 return;
             }
-            showImage(img, factor, point);
+            showImage(img, factor, fieldSide, point);
         });
 
         img.addEventListener('mouseleave', function() {
+            lastPointer = null;
             if (groupImages && groupImages.length > 1) {
                 hideImages(groupImages);
                 return;
@@ -247,8 +305,131 @@
         });
     };
 
+    function refreshActiveZoom() {
+        if (!lastPointer) return;
+        var fieldSide = fieldSideFor(lastPointer.img);
+        if (lastPointer.groupImages && lastPointer.groupImages.length > 1) {
+            var previewSide = previewSideForImages(
+                lastPointer.groupImages,
+                lastPointer.factor,
+                fieldSide
+            );
+            lastPointer.groupImages.forEach(function(groupImg) {
+                showImage(
+                    groupImg,
+                    lastPointer.factor,
+                    fieldSide,
+                    lastPointer.point,
+                    previewSide
+                );
+            });
+            return;
+        }
+        showImage(
+            lastPointer.img,
+            lastPointer.factor,
+            fieldSide,
+            lastPointer.point
+        );
+    }
+
+    function sliderNumber(slider, name, fallback) {
+        var value = parseInt(slider.dataset[name], 10);
+        return Number.isFinite(value) ? value : fallback;
+    }
+
+    function setSliderValue(slider, rawValue) {
+        var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
+        var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
+        var step = sliderNumber(slider, 'step', 4);
+        var value = clampRange(rawValue, min, max);
+        value = min + Math.round((value - min) / step) * step;
+        value = clampRange(value, min, max);
+
+        var pct = ((value - min) / (max - min)) * 100;
+        var fill = slider.querySelector('.zoom-field-fill');
+        var thumb = slider.querySelector('.zoom-field-thumb');
+        var output = slider
+            .closest('.zoom-field-control')
+            .querySelector('[data-zoom-field-output]');
+
+        slider.dataset.value = String(value);
+        slider.setAttribute('aria-valuenow', String(value));
+        if (fill) fill.style.width = pct + '%';
+        if (thumb) thumb.style.left = pct + '%';
+        if (output) output.textContent = String(value);
+        refreshActiveZoom();
+    }
+
+    function setSliderFromClientX(slider, clientX) {
+        var rect = slider.getBoundingClientRect();
+        if (!rect.width) return;
+        var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
+        var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
+        var pct = clampUnit((clientX - rect.left) / rect.width);
+        setSliderValue(slider, min + pct * (max - min));
+    }
+
+    function initZoomFieldControls() {
+        document
+            .querySelectorAll('[data-zoom-field-slider]')
+            .forEach(function(slider) {
+                setSliderValue(
+                    slider,
+                    sliderNumber(slider, 'value', DEFAULT_FIELD_SIDE)
+                );
+
+                var activePointer = null;
+
+                function onMove(event) {
+                    if (event.pointerId !== activePointer) return;
+                    setSliderFromClientX(slider, event.clientX);
+                }
+
+                function stopDrag(event) {
+                    if (event.pointerId !== activePointer) return;
+                    activePointer = null;
+                }
+
+                slider.addEventListener('pointerdown', function(event) {
+                    event.preventDefault();
+                    activePointer = event.pointerId;
+                    slider.setPointerCapture(event.pointerId);
+                    setSliderFromClientX(slider, event.clientX);
+                });
+                slider.addEventListener('pointermove', onMove);
+                slider.addEventListener('pointerup', stopDrag);
+                slider.addEventListener('pointercancel', stopDrag);
+
+                slider.addEventListener('keydown', function(event) {
+                    var current = sliderNumber(
+                        slider, 'value', DEFAULT_FIELD_SIDE
+                    );
+                    var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
+                    var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
+                    var step = sliderNumber(slider, 'step', 4);
+                    if (event.key === 'ArrowLeft'
+                            || event.key === 'ArrowDown') {
+                        event.preventDefault();
+                        setSliderValue(slider, current - step);
+                    } else if (event.key === 'ArrowRight'
+                            || event.key === 'ArrowUp') {
+                        event.preventDefault();
+                        setSliderValue(slider, current + step);
+                    } else if (event.key === 'Home') {
+                        event.preventDefault();
+                        setSliderValue(slider, min);
+                    } else if (event.key === 'End') {
+                        event.preventDefault();
+                        setSliderValue(slider, max);
+                    }
+                });
+            });
+    }
+
     document.addEventListener('DOMContentLoaded', function() {
         if (!document.querySelector('[data-zoom-factor]')) return;
         window.IQAInitZoom(document);
+        initZoomFieldControls();
     });
 })();

@@ -1,0 +1,32 @@
+# Secrets — never bake into the image
+.env
+local_passwd.txt
+
+# Local dev DB
+db.sqlite3
+
+# Large image datasets — served from S3/CloudFront, not the app
+images/
+media/
+
+# Python / virtualenv artifacts
+.venv/
+__pycache__/
+*.py[cod]
+
+# Build output regenerated at image build time
+staticfiles/
+
+# VCS / tooling / agent metadata
+.git/
+.gitignore
+.agents/
+.codex/
+.claude/
+.playwright-cli/
+output/
+test-results/
+
+# Docs and scratch files
+doc/
+*.csv

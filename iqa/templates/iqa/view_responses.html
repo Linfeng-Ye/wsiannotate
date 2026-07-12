@@ -3,6 +3,9 @@
 
 {% block content %}
 <h1>View Responses</h1>
+<p style="color:#555;">
+    <a href="{% url 'iqa:annotator_progress' %}">&larr; Annotator progress &amp; per-annotator exports</a>
+</p>
 
 <form method="get" style="margin-bottom:20px;">
     <label for="study_id"><strong>Study:</strong></label>

@@ -3,13 +3,15 @@
 {% block title %}MOS Evaluation{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260622">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260704-studio">
 {% endblock %}
 
 {% block content %}
-<div class="sizing-{{ study.image_sizing }}"
+<div class="evaluation-mos{% if study.zoom_enabled %} has-zoom{% endif %} sizing-{{ study.image_sizing }}"
      data-scale="{{ study.image_scale_factor }}"
-     data-background-preload-url="{% url 'iqa:preload_manifest' study.id %}?current={{ stimulus.id }}&limit=10"
+     data-prefetch-url="{% url 'iqa:prefetch' study.id %}?current={{ stimulus.id }}"
+     data-prefetch-report-url="{% url 'iqa:prefetch_report' %}"
+     data-prefetch-study="{{ study.id }}"
      {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
 <div class="eval-header">
     <div class="eval-title">{{ study.name }}</div>
@@ -24,6 +26,32 @@
 <div class="eval-warning">
     You have already rated this image (score={{ existing.score }}).
     Submitting again will overwrite your previous response.
+</div>
+{% endif %}
+
+{% if study.zoom_enabled %}
+<div class="image-toolbar">
+    <label class="zoom-field-control">
+        <span>Field</span>
+        <span class="zoom-field-slider"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Zoom field size"
+                  aria-valuemin="40"
+                  aria-valuemax="120"
+                  aria-valuenow="80"
+                  data-zoom-field-slider
+                  data-min="40"
+                  data-max="120"
+                  data-step="4"
+                  data-value="80">
+                <span class="zoom-field-track">
+                    <span class="zoom-field-fill"></span>
+                    <span class="zoom-field-thumb"></span>
+                </span>
+            </span>
+            <output class="zoom-field-output" data-zoom-field-output>80</output>
+    </label>
 </div>
 {% endif %}
 
@@ -115,9 +143,9 @@
 
 {% block extra_js %}
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260622"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260704-research"></script>
 {% endif %}
-<script src="{% static 'iqa/js/preload.js' %}"></script>
+<script src="{% static 'iqa/js/prefetch.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var wrap = document.querySelector('[data-scale]');

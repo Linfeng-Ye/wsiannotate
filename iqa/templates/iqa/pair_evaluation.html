@@ -3,14 +3,14 @@
 {% block title %}2AFC Evaluation{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260622">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260704-studio">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
 {% block content %}
-<div class="sizing-{{ study.image_sizing }}"
+<div class="evaluation-pair{% if study.zoom_enabled %} has-zoom{% endif %} sizing-{{ study.image_sizing }}"
      data-scale="{{ study.image_scale_factor }}"
-     {% if not ref_mismatch_error %}data-background-preload-url="{% url 'iqa:preload_manifest' study.id %}?current={{ stimulus.id }}&limit=10"{% endif %}
+     {% if not ref_mismatch_error %}data-prefetch-url="{% url 'iqa:prefetch' study.id %}?current={{ stimulus.id }}" data-prefetch-report-url="{% url 'iqa:prefetch_report' %}" data-prefetch-study="{{ study.id }}"{% endif %}
      {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
 
 {% if ref_mismatch_error %}
@@ -52,6 +52,32 @@
     You already chose Image {{ existing.choice }}
     for this pair. Submitting again will overwrite
     your previous response.
+</div>
+{% endif %}
+
+{% if study.zoom_enabled %}
+<div class="image-toolbar">
+    <label class="zoom-field-control">
+        <span>Field</span>
+        <span class="zoom-field-slider"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Zoom field size"
+                  aria-valuemin="40"
+                  aria-valuemax="120"
+                  aria-valuenow="80"
+                  data-zoom-field-slider
+                  data-min="40"
+                  data-max="120"
+                  data-step="4"
+                  data-value="80">
+                <span class="zoom-field-track">
+                    <span class="zoom-field-fill"></span>
+                    <span class="zoom-field-thumb"></span>
+                </span>
+            </span>
+            <output class="zoom-field-output" data-zoom-field-output>80</output>
+    </label>
 </div>
 {% endif %}
 
@@ -99,12 +125,12 @@
     <button type="button"
             class="btn pair-btn pair-btn-a{% if existing_display_choice == 'A' %} active{% endif %}"
             data-choice="A">
-        A
+        Image A
     </button>
     <button type="button"
             class="btn pair-btn pair-btn-b{% if existing_display_choice == 'B' %} active{% endif %}"
             data-choice="B">
-        B
+        Image B
     </button>
 </div>
 
@@ -141,6 +167,32 @@
 </form>
 
 {% else %}
+{% if study.zoom_enabled %}
+<div class="image-toolbar">
+    <label class="zoom-field-control">
+        <span>Field</span>
+        <span class="zoom-field-slider"
+                  role="slider"
+                  tabindex="0"
+                  aria-label="Zoom field size"
+                  aria-valuemin="40"
+                  aria-valuemax="120"
+                  aria-valuenow="80"
+                  data-zoom-field-slider
+                  data-min="40"
+                  data-max="120"
+                  data-step="4"
+                  data-value="80">
+                <span class="zoom-field-track">
+                    <span class="zoom-field-fill"></span>
+                    <span class="zoom-field-thumb"></span>
+                </span>
+            </span>
+            <output class="zoom-field-output" data-zoom-field-output>80</output>
+    </label>
+</div>
+{% endif %}
+
 <div class="pair-page-layout">
     <div class="pair-images-area">
         {% if ref_a or ref_b %}
@@ -216,12 +268,12 @@
             <button type="button"
                     class="btn pair-btn pair-btn-a{% if existing_display_choice == 'A' %} active{% endif %}"
                     data-choice="A">
-                A
+                Image A
             </button>
             <button type="button"
                     class="btn pair-btn pair-btn-b{% if existing_display_choice == 'B' %} active{% endif %}"
                     data-choice="B">
-                B
+                Image B
             </button>
         </div>
 
@@ -272,9 +324,9 @@
 {% block extra_js %}
 {% if not ref_mismatch_error %}
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260622"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260704-research"></script>
 {% endif %}
-<script src="{% static 'iqa/js/preload.js' %}"></script>
+<script src="{% static 'iqa/js/prefetch.js' %}"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var wrap = document.querySelector('[data-scale]');
