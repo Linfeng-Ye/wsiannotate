@@ -50,4 +50,29 @@
             HTMLFormElement.prototype.submit.call(form);
         });
     };
+
+    // Keep the server connection warm. App Runner speaks HTTP/1.1, and on
+    // high-RTT / NAT-dropping networks an idle TLS connection is torn down
+    // between trials, so each click otherwise pays a fresh TCP+TLS handshake
+    // (~1-2s) that dwarfs the ~300ms of actual work. A cheap periodic ping to
+    // the health endpoint keeps an established connection in the socket pool
+    // for the next submit/navigation to reuse.
+    var HEARTBEAT_MS = 10000;
+
+    function heartbeat() {
+        if (document.visibilityState === 'hidden') return;
+        try {
+            fetch('/healthz', {
+                method: 'GET',
+                cache: 'no-store',
+                credentials: 'same-origin',
+            }).catch(function () { /* best-effort */ });
+        } catch (err) { /* best-effort */ }
+    }
+
+    setInterval(heartbeat, HEARTBEAT_MS);
+    document.addEventListener('visibilitychange', function () {
+        if (document.visibilityState === 'visible') heartbeat();
+    });
+    heartbeat();
 }());
