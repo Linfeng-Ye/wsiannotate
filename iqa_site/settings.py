@@ -50,6 +50,16 @@ CSRF_COOKIE_SECURE = _env_bool(
     not DEBUG,
 )
 
+# Annotators work through thousands of pairs over long stretches. Keep the
+# login session (and therefore the CSRF token, which is tied to it) alive for
+# ~2 months, and make it a rolling window refreshed on every request so an
+# active annotator is never logged out mid-study — a silent session expiry
+# would make every background answer-sync fail with no obvious signal.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 60          # 60 days
+SESSION_SAVE_EVERY_REQUEST = True               # slide the window on activity
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+CSRF_COOKIE_AGE = 60 * 60 * 24 * 60             # match the session window
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',

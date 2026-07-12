@@ -787,18 +787,24 @@ def study_manifest(request, study_id):
 @login_required
 @require_GET
 def study_answered(request, study_id):
-    """Just the set of stimulus ids the server has an answer for.
+    """The server's answers for this user, as ``{stimulus_id: display_choice}``.
 
     Used by the client to verify completeness on the done screen and to
     reconcile after a reload without downloading the whole manifest again.
+    Returning the *choice* (not just the id) lets the client tell whether the
+    server actually holds its local answer, so a value that differs — e.g. a
+    pair answered on another device, or an answer a background race left stale
+    — is corrected instead of silently trusted.
     """
     study = get_object_or_404(Study, id=study_id, is_active=True)
     if not _local_mode_available(study):
         return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
-    ids = PairResponse.objects.filter(
+    answered = {}
+    for stimulus_id, display_choice, choice in PairResponse.objects.filter(
         user=request.user, stimulus__study=study,
-    ).values_list('stimulus_id', flat=True)
-    return JsonResponse({'answered': [str(i) for i in ids]})
+    ).values_list('stimulus_id', 'display_choice', 'choice'):
+        answered[str(stimulus_id)] = display_choice or choice
+    return JsonResponse({'answered': answered})
 
 
 @login_required
@@ -850,6 +856,8 @@ def evaluation_submit_batch(request):
 
     saved = 0
     kept = 0
+    touched_ids = []      # pairs we actually processed (saved or kept)
+    rejected_ids = []     # pairs we can never save (unknown stimulus/bad choice)
     with transaction.atomic():
         for item in responses:
             if not isinstance(item, dict):
@@ -859,12 +867,14 @@ def evaluation_submit_batch(request):
             except (TypeError, ValueError):
                 continue
             display_choice = item.get('choice')
+            stimulus = stimuli.get(stimulus_id)
             if display_choice not in (
                 PairResponse.CHOICE_A, PairResponse.CHOICE_B,
-            ):
-                continue
-            stimulus = stimuli.get(stimulus_id)
-            if stimulus is None:
+            ) or stimulus is None:
+                # Unknown/deleted stimulus or a malformed choice: this item can
+                # never be persisted. Tell the client so it stops resending it
+                # forever (otherwise the done screen loops on "Upload now").
+                rejected_ids.append(str(stimulus_id))
                 continue
             wrote = _record_pair_response(
                 request.user, stimulus, display_choice,
@@ -875,18 +885,29 @@ def evaluation_submit_batch(request):
                 saved += 1
             else:
                 kept += 1
+            touched_ids.append(stimulus_id)
 
-    result = {'success': True, 'saved': saved, 'kept': kept}
-    if kept:
-        # At least one write hit a pair the server already had — this client
-        # is likely behind (e.g. a laptop left open while another device moved
-        # ahead). Hand back the authoritative answered set so it can reconcile
-        # and jump to the true position instead of re-showing done pairs.
-        answered_ids = PairResponse.objects.filter(
-            user=request.user, stimulus__study=study,
-        ).values_list('stimulus_id', flat=True)
-        result['answered'] = [str(i) for i in answered_ids]
-    return JsonResponse(result)
+    # Hand back the choice the server now holds so the client can reconcile
+    # (mark an answer synced only when the server truly has *its* value). When
+    # a write was kept, this client is likely behind another device, so return
+    # the full answered set for a complete catch-up; otherwise just the pairs
+    # in this batch keeps the response small on the hot submit path.
+    scope = PairResponse.objects.filter(user=request.user, stimulus__study=study)
+    if not kept:
+        scope = scope.filter(stimulus_id__in=touched_ids)
+    answered = {}
+    for stimulus_id, display_choice, choice in scope.values_list(
+        'stimulus_id', 'display_choice', 'choice',
+    ):
+        answered[str(stimulus_id)] = display_choice or choice
+
+    return JsonResponse({
+        'success': True,
+        'saved': saved,
+        'kept': kept,
+        'answered': answered,
+        'rejected_ids': rejected_ids,
+    })
 
 
 def _gen_password(length=12) -> str:

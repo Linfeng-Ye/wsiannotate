@@ -19,6 +19,7 @@
 
     var cfg = {
         studyId: root.dataset.studyId,
+        userId: root.dataset.userId || '0',
         csrf: root.dataset.csrf,
         manifestUrl: root.dataset.manifestUrl,
         answeredUrl: root.dataset.answeredUrl,
@@ -28,7 +29,9 @@
 
     var PRELOAD_AHEAD = 6;       // trials to warm images for
     var RETRY_INTERVAL_MS = 15000;
-    var STORAGE_KEY = 'iqa_local_' + cfg.studyId;
+    // Scope storage per (study, user) so two annotators sharing a browser never
+    // load — or sync under the wrong account — each other's answers.
+    var STORAGE_KEY = 'iqa_local_' + cfg.studyId + '_' + cfg.userId;
 
     // --- DOM ---------------------------------------------------------------
     var imgEls = {
@@ -117,7 +120,9 @@
         var out = [];
         Object.keys(responses).forEach(function (id) {
             var r = responses[id];
-            if (r && !r.synced) {
+            // Skip rejected pairs (server can never save them) so they don't
+            // resend forever.
+            if (r && !r.synced && !r.rejected) {
                 out.push({
                     stimulus_id: parseInt(id, 10),
                     choice: r.choice,
@@ -129,17 +134,59 @@
         return out;
     }
 
-    function markSynced(id) {
+    // Reconcile one local answer against what the server holds
+    // (serverChoice[id]). First-write-wins: the server is the source of truth
+    // for a forward answer, while a deliberate revise keeps resending until the
+    // server reflects it. Marking synced by *choice match* (not "we sent it")
+    // is what makes an in-flight race safe: if the local choice changed while a
+    // stale request was in flight, that request's success never marks the newer
+    // answer synced.
+    function reconcileOne(id) {
         id = String(id);
-        if (responses[id]) responses[id].synced = true;
-        serverChoice[id] = choiceFor(id);
+        var r = responses[id];
+        if (!r) return;
+        if (r.rejected) { r.synced = true; return; }   // unsavable: stop trying
+        var srv = serverChoice[id];
+        if (srv == null) {
+            r.synced = false;                 // server lacks it -> resend
+        } else if (r.choice === srv) {
+            r.synced = true;                  // server already holds our choice
+        } else if (!r.revise) {
+            r.choice = srv; r.synced = true;  // forward answer lost first-write
+        } else {
+            r.synced = false;                 // revise not yet accepted -> resend
+        }
     }
 
+    // Merge a server choice map ({id: 'A'|'B'}) into local state and reconcile
+    // every id it mentions. Returns true if anything changed.
+    function mergeServerAnswered(answered) {
+        if (!answered) return false;
+        var changed = false;
+        Object.keys(answered).forEach(function (id) {
+            id = String(id);
+            if (serverChoice[id] !== answered[id]) {
+                serverChoice[id] = answered[id];
+                changed = true;
+            }
+            var before = responses[id] ? responses[id].synced : undefined;
+            reconcileOne(id);
+            if (responses[id] && responses[id].synced !== before) changed = true;
+        });
+        return changed;
+    }
+
+    var flushInFlight = false;
+
     // Batch flush of everything still unsynced (per submit / retry / reload /
-    // done). Idempotent upsert, so re-sending an item is harmless.
+    // done). Idempotent upsert, so re-sending an item is harmless. Only one
+    // flush runs at a time; anything left unsynced is picked up by the next
+    // flush (submit/timer/focus), so nothing is lost by skipping.
     function flushBatch() {
+        if (flushInFlight) return Promise.resolve(0);
         var items = unsyncedItems();
         if (!items.length) return Promise.resolve(0);
+        flushInFlight = true;
         return fetch(cfg.batchUrl, {
             method: 'POST',
             credentials: 'same-origin',
@@ -155,28 +202,29 @@
             return resp.ok ? resp.json() : null;
         }).then(function (data) {
             if (!data) return 0;
-            items.forEach(function (it) { markSynced(it.stimulus_id); });
+            // Pairs the server can never save (deleted stimulus, bad payload):
+            // stop resending them so the done screen can't loop forever.
+            (data.rejected_ids || []).forEach(function (id) {
+                id = String(id);
+                if (responses[id]) {
+                    responses[id].rejected = true;
+                    reconcileOne(id);   // marks synced so it leaves the queue
+                }
+            });
+            // Reconcile against the choice the server actually holds.
+            applyServerAnswered(data.answered);
             saveLocal();
             updateProgress();
-            if (data.answered) applyServerAnswered(data.answered);
             return items.length;
-        }).catch(function () { return 0; });
+        }).catch(function () { return 0; })
+          .then(function (n) { flushInFlight = false; return n; });
     }
 
-    // Merge the server's authoritative answered set and catch up. If the pair
-    // on screen was already answered elsewhere and the annotator hasn't started
+    // Merge the server's authoritative answers and catch up. If the pair on
+    // screen was already answered elsewhere and the annotator hasn't started
     // it, jump to the true position instead of re-showing a done pair.
     function applyServerAnswered(answered) {
-        if (!answered) return;
-        var changed = false;
-        answered.forEach(function (id) {
-            id = String(id);
-            if (serverChoice[id] == null) {
-                serverChoice[id] = responses[id] ? responses[id].choice : 'A';
-                changed = true;
-            }
-            if (responses[id]) responses[id].synced = true;
-        });
+        var changed = mergeServerAnswered(answered);
         if (changed) { saveLocal(); updateProgress(); }
         if (!finished && chosen == null
                 && current >= 0 && current < trials.length
@@ -358,27 +406,28 @@
             return fetch(cfg.answeredUrl, { credentials: 'same-origin' })
                 .then(function (r) { return r.ok ? r.json() : null; });
         }).then(function (data) {
-            var serverSet = new Set(
-                (data && data.answered ? data.answered : []).map(String)
-            );
-            // Trust the server: re-derive synced from what it confirms, so a
-            // response it is still missing stays unsynced and gets resent.
-            serverSet.forEach(function (id) {
-                if (serverChoice[id] == null) serverChoice[id] = 'A';
-            });
-            Object.keys(responses).forEach(function (id) {
-                responses[id].synced = serverSet.has(id);
-            });
+            // The done-screen fetch is the full authoritative answer set, so
+            // rebuild serverChoice from it and reconcile every local answer
+            // (choice-aware): anything the server is missing or holds a
+            // different value for stays unsynced and gets resent.
+            var answered = (data && data.answered) ? data.answered : {};
+            var serverSet = new Set(Object.keys(answered).map(String));
+            serverChoice = {};
+            serverSet.forEach(function (id) { serverChoice[id] = answered[id]; });
+            Object.keys(responses).forEach(reconcileOne);
             saveLocal();
 
             var pending = [];   // never answered anywhere -> must be done
             var unsent = [];    // answered locally, server doesn't have it yet
+            var skipped = 0;    // pairs the server rejected (no longer exist)
             trials.forEach(function (t) {
                 var id = sid(t);
                 if (serverSet.has(id)) return;
-                if (responses[id]) unsent.push(t); else pending.push(t);
+                var r = responses[id];
+                if (r && r.rejected) { skipped++; return; }
+                if (r) unsent.push(t); else pending.push(t);
             });
-            renderDone(serverSet.size, pending, unsent);
+            renderDone(serverSet.size, pending, unsent, skipped);
         }).catch(function () {
             // Offline at the very end: local answers are still on disk and
             // will resend next time. Be honest about it.
@@ -386,14 +435,19 @@
         });
     }
 
-    function renderDone(serverCount, pending, unsent) {
+    function renderDone(serverCount, pending, unsent, skipped) {
+        skipped = skipped || 0;
+        var skipNote = skipped
+            ? '<p class="local-sync-note">' + skipped + ' pair(s) are no ' +
+              'longer part of this study and were skipped.</p>'
+            : '';
         if (pending.length === 0 && unsent.length === 0) {
             doneEl.className = 'local-done';
             doneEl.innerHTML =
                 '<h2>All done ✓</h2>' +
                 '<p><span class="local-done-count">' + serverCount +
                 '</span> of <span class="local-done-count">' + trials.length +
-                '</span> responses are saved on the server.</p>' +
+                '</span> responses are saved on the server.</p>' + skipNote +
                 '<div class="local-done-actions">' +
                 '<button type="button" class="btn btn-primary" data-go-home>' +
                 'Back to studies</button></div>';
@@ -476,6 +530,9 @@
         w.addEventListener('keydown', function (e) {
             if (e.key === 'Enter' || e.key === ' ') {
                 e.preventDefault();
+                // Don't let Enter bubble to the document handler, or the same
+                // keystroke would select *and* submit in one go.
+                e.stopPropagation();
                 setChoice(w.dataset.imageChoice);
             }
         });
@@ -549,12 +606,10 @@
                     serverChoice[String(id)] = data.answered[id];
                 });
                 // The server is the source of truth: an answer counts as
-                // synced only if the server actually confirms it. Re-derive
-                // the flag so anything the server is missing gets resent,
-                // even if this device once thought it was saved.
-                Object.keys(responses).forEach(function (id) {
-                    responses[id].synced = (serverChoice[id] != null);
-                });
+                // synced only if the server holds *its* choice. Re-derive the
+                // flag so anything the server is missing or disagrees with gets
+                // resent, even if this device once thought it was saved.
+                Object.keys(responses).forEach(reconcileOne);
                 saveLocal();
                 flushBatch();
 

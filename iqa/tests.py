@@ -528,19 +528,24 @@ class LocalModeTests(TestCase):
                  'swap': False, 'revise': False},
             ]}), content_type='application/json').json()
         self.assertEqual(kept['kept'], 1)
+        # Full authoritative choice map so the stale client can catch up. The
+        # kept pair reports the value the server actually holds ('A'), not the
+        # rejected forward write ('B').
         self.assertEqual(
-            set(kept['answered']),
-            {str(self.stims[0].id), str(self.stims[1].id)},
+            kept['answered'],
+            {str(self.stims[0].id): 'A', str(self.stims[1].id): 'A'},
         )
 
-        # A clean forward insert stays tiny (no answered set).
+        # A clean forward insert returns just the touched pair's choice so the
+        # client can confirm the server holds its value.
         clean = self.client.post(url, data=json.dumps({
             'study_id': self.study.id, 'responses': [
                 {'stimulus_id': self.stims[2].id, 'choice': 'A',
                  'swap': False, 'revise': False},
             ]}), content_type='application/json').json()
         self.assertEqual(clean['saved'], 1)
-        self.assertNotIn('answered', clean)
+        self.assertEqual(clean['answered'], {str(self.stims[2].id): 'A'})
+        self.assertEqual(clean['rejected_ids'], [])
 
     def test_batch_accepts_beacon_form_payload(self):
         payload = json.dumps({'study_id': self.study.id, 'responses': [
@@ -555,31 +560,39 @@ class LocalModeTests(TestCase):
             stimulus=self.stims[2], user=self.user,
         ).exists())
 
-    def test_batch_ignores_invalid_items(self):
+    def test_batch_reports_unsavable_items_as_rejected(self):
         payload = {'study_id': self.study.id, 'responses': [
-            {'stimulus_id': self.stims[0].id, 'choice': 'X'},
-            {'stimulus_id': 999999, 'choice': 'A'},
-            {'choice': 'A'},
+            {'stimulus_id': self.stims[0].id, 'choice': 'X'},   # bad choice
+            {'stimulus_id': 999999, 'choice': 'A'},             # unknown pair
+            {'choice': 'A'},                                    # no id -> ignored
             {'stimulus_id': self.stims[1].id, 'choice': 'A', 'swap': False},
         ]}
         r = self.client.post(
             reverse('iqa:evaluation_submit_batch'),
             data=json.dumps(payload), content_type='application/json',
         )
-        self.assertEqual(r.json()['saved'], 1)
+        data = r.json()
+        self.assertEqual(data['saved'], 1)
         self.assertEqual(PairResponse.objects.filter(
             user=self.user, stimulus__study=self.study,
         ).count(), 1)
+        # Unsavable pairs come back so the client stops resending them forever
+        # (no "Upload now" loop on the done screen).
+        self.assertEqual(
+            set(data['rejected_ids']), {str(self.stims[0].id), '999999'},
+        )
 
-    def test_answered_endpoint_returns_ids(self):
+    def test_answered_endpoint_returns_choice_map(self):
         PairResponse.objects.create(
-            stimulus=self.stims[0], user=self.user, choice='A',
+            stimulus=self.stims[0], user=self.user,
+            choice='A', display_choice='B',
         )
         r = self.client.get(
             reverse('iqa:study_answered', args=[self.study.id]),
         )
         self.assertEqual(r.status_code, 200)
-        self.assertEqual(r.json()['answered'], [str(self.stims[0].id)])
+        # The display choice the annotator clicked, not just the id.
+        self.assertEqual(r.json()['answered'], {str(self.stims[0].id): 'B'})
 
     def test_endpoints_require_local_mode(self):
         self.study.use_local_mode = False
