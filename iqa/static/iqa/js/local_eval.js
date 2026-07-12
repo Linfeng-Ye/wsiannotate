@@ -325,6 +325,9 @@
         imgEls.a.src = t.img_a;
         imgEls.b.src = t.img_b;
         if (imgEls.ref) imgEls.ref.src = t.ref || '';
+        // If the loupe is open (mouse resting on an image), repoint it at the
+        // new pair immediately instead of waiting for a mouse move.
+        if (window.IQARefreshZoom) window.IQARefreshZoom();
         setChoice(choiceFor(t.id));    // restore prior answer or clear
         evaluateImages();              // catch already-cached failures
         prevBtn.disabled = (i <= 0);
@@ -553,14 +556,32 @@
         im.addEventListener('error', evaluateImages);
     });
 
+    // True when the keystroke is aimed at the zoom slider, which owns the
+    // arrow keys for adjusting magnification — don't also navigate pairs.
+    function onZoomSlider(e) {
+        return !!(e.target && e.target.closest
+            && e.target.closest('[data-zoom-field-slider]'));
+    }
+
     document.addEventListener('keydown', function (e) {
         if (finished) return;
         var key = e.key.toUpperCase();
+        // A / 1 pick the left image; B / S / 2 pick the right image (A+S are
+        // the natural left-hand keys).
         if (key === 'A' || e.key === '1') setChoice('A');
-        else if (key === 'B' || e.key === '2') setChoice('B');
+        else if (key === 'B' || key === 'S' || e.key === '2') setChoice('B');
         else if (e.key === 'Enter' && !submitBtn.disabled) {
             e.preventDefault();
             submit();
+        }
+        // Left/Right arrows page through pairs (Previous / Next), unless the
+        // zoom slider is focused. Next still refuses to skip an unlabeled pair.
+        else if (e.key === 'ArrowLeft' && !onZoomSlider(e)) {
+            e.preventDefault();
+            if (current > 0) renderTrial(current - 1);
+        } else if (e.key === 'ArrowRight' && !onZoomSlider(e)) {
+            e.preventDefault();
+            if (canGoNext()) renderTrial(current + 1);
         }
     });
 

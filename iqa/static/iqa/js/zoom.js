@@ -1,11 +1,16 @@
 (function() {
     'use strict';
 
-    var DEFAULT_FIELD_SIDE = 80;
-    var MIN_FIELD_SIDE = 40;
-    var MAX_FIELD_SIDE = 120;
+    // The zoom control drives the MAGNIFICATION (how much the loupe zooms in),
+    // not the sampled-area size. The preview window stays a fixed, comfortable
+    // size and the sampled patch shrinks as magnification rises — normal
+    // magnifier behaviour.
+    var MIN_MAGNIFICATION = 1.5;
+    var MAX_MAGNIFICATION = 6;
+    var DEFAULT_MAGNIFICATION = 2;
+    var PREVIEW_SIDE = 240;       // fixed loupe window (clamped to the image)
     var MIN_PREVIEW_SIDE = 80;
-    var MAX_PREVIEW_SIDE = 280;
+    var MIN_LENS_SIDE = 8;        // sampled patch can get tiny at high zoom
     var lastPointer = null;
 
     function factorFor(root) {
@@ -18,15 +23,20 @@
         return parseFloat(source && source.dataset.zoomFactor) || 2;
     }
 
-    function fieldSideFor(root) {
+    // Current magnification: from the slider when present, else the study's
+    // configured zoom factor, else a sensible default.
+    function magnificationFor(root) {
         var control = document.querySelector('[data-zoom-field-slider]');
-        var value = control
-            ? parseInt(control.dataset.value, 10)
-            : DEFAULT_FIELD_SIDE;
+        if (control) {
+            var v = parseFloat(control.dataset.value);
+            if (isFinite(v) && v > 0) {
+                return clampRange(v, MIN_MAGNIFICATION, MAX_MAGNIFICATION);
+            }
+        }
         return clampRange(
-            value || DEFAULT_FIELD_SIDE,
-            MIN_FIELD_SIDE,
-            MAX_FIELD_SIDE
+            factorFor(root) || DEFAULT_MAGNIFICATION,
+            MIN_MAGNIFICATION,
+            MAX_MAGNIFICATION
         );
     }
 
@@ -117,34 +127,31 @@
         return Math.min(rect.width, rect.height);
     }
 
-    function previewSideForImage(img, factor, fieldSide) {
+    // Loupe window: a fixed comfortable size, never larger than the image.
+    function previewSideForImage(img) {
         var baseSide = displayedImageBaseSide(img);
-        if (!baseSide) return Math.round(fieldSide * factor);
-        return clampRange(
-            Math.round(fieldSide * factor),
-            MIN_PREVIEW_SIDE,
-            Math.min(MAX_PREVIEW_SIDE, baseSide)
-        );
+        if (!baseSide) return PREVIEW_SIDE;
+        return clampRange(PREVIEW_SIDE, MIN_PREVIEW_SIDE, baseSide);
     }
 
-    function previewSideForImages(images, factor, fieldSide) {
+    function previewSideForImages(images) {
         var sides = images.map(displayedImageBaseSide).filter(function(side) {
             return side > 0;
         });
-        if (!sides.length) return Math.round(fieldSide * factor);
+        if (!sides.length) return PREVIEW_SIDE;
         return clampRange(
-            Math.round(fieldSide * factor),
-            MIN_PREVIEW_SIDE,
-            Math.min(MAX_PREVIEW_SIDE, Math.min.apply(null, sides))
+            PREVIEW_SIDE, MIN_PREVIEW_SIDE, Math.min.apply(null, sides)
         );
     }
 
-    function fieldSideForPreview(previewSide, factor, fieldSide, img) {
+    // Sampled patch (the rectangle drawn on the image) = window / magnification,
+    // so higher magnification samples a smaller patch and zooms it more.
+    function lensSideForPreview(previewSide, factor, img) {
         var baseSide = displayedImageBaseSide(img);
         return clampRange(
             Math.round(previewSide / factor),
-            MIN_FIELD_SIDE,
-            Math.min(MAX_FIELD_SIDE, baseSide || MAX_FIELD_SIDE, fieldSide)
+            MIN_LENS_SIDE,
+            Math.min(previewSide, baseSide || previewSide)
         );
     }
 
@@ -171,7 +178,7 @@
         images.forEach(hideImage);
     }
 
-    function showImage(img, factor, fieldSide, point, previewSize) {
+    function showImage(img, factor, point, previewSize) {
         var nodes = img._zoomNodes || ensureZoomNodes(img);
         if (!nodes) return;
         img._zoomNodes = nodes;
@@ -182,12 +189,8 @@
         var wrapperRect = nodes.wrapper.getBoundingClientRect();
         var imageLeft = imageRect.left - wrapperRect.left;
         var imageTop = imageRect.top - wrapperRect.top;
-        var overlaySide = previewSize || previewSideForImage(
-            img, factor, fieldSide
-        );
-        var lensSide = fieldSideForPreview(
-            overlaySide, factor, fieldSide, img
-        );
+        var overlaySide = previewSize || previewSideForImage(img);
+        var lensSide = lensSideForPreview(overlaySide, factor, img);
 
         nodes.slot.style.minHeight = overlaySide + 'px';
         nodes.overlay.style.width = overlaySide + 'px';
@@ -235,7 +238,7 @@
     // rather than a tap that selects the image.
     var TOUCH_DRAG_THRESHOLD = 8;
 
-    function attachImage(img, groupImages, factor) {
+    function attachImage(img, groupImages) {
         if (img.dataset.zoomAttached === '1') return;
         var nodes = ensureZoomNodes(img);
         if (!nodes) return;
@@ -244,29 +247,20 @@
 
         function update(event) {
             var point = relativePoint(img, event);
-            var fieldSide = fieldSideFor(img);
+            var factor = magnificationFor(img);
             lastPointer = {
                 img: img,
                 groupImages: groupImages,
-                factor: factor,
                 point: point
             };
             if (groupImages && groupImages.length > 1) {
-                var previewSide = previewSideForImages(
-                    groupImages, factor, fieldSide
-                );
+                var previewSide = previewSideForImages(groupImages);
                 groupImages.forEach(function(groupImg) {
-                    showImage(
-                        groupImg,
-                        factor,
-                        fieldSide,
-                        point,
-                        previewSide
-                    );
+                    showImage(groupImg, factor, point, previewSide);
                 });
                 return;
             }
-            showImage(img, factor, fieldSide, point);
+            showImage(img, factor, point);
         }
 
         function hide() {
@@ -369,7 +363,6 @@
 
     window.IQAInitZoom = function(root) {
         root = root || document;
-        var factor = factorFor(root);
         var images = Array.prototype.slice.call(
             root.querySelectorAll('.eval-image')
         );
@@ -378,49 +371,39 @@
         images.forEach(function(img) {
             var groupName = img.dataset.syncZoomGroup;
             var groupImages = groupName ? groups[groupName] : null;
-            attachImage(img, groupImages, factor);
+            attachImage(img, groupImages);
         });
     };
 
     function refreshActiveZoom() {
         if (!lastPointer) return;
-        var fieldSide = fieldSideFor(lastPointer.img);
+        var factor = magnificationFor(lastPointer.img);
         if (lastPointer.groupImages && lastPointer.groupImages.length > 1) {
-            var previewSide = previewSideForImages(
-                lastPointer.groupImages,
-                lastPointer.factor,
-                fieldSide
-            );
+            var previewSide = previewSideForImages(lastPointer.groupImages);
             lastPointer.groupImages.forEach(function(groupImg) {
-                showImage(
-                    groupImg,
-                    lastPointer.factor,
-                    fieldSide,
-                    lastPointer.point,
-                    previewSide
-                );
+                showImage(groupImg, factor, lastPointer.point, previewSide);
             });
             return;
         }
-        showImage(
-            lastPointer.img,
-            lastPointer.factor,
-            fieldSide,
-            lastPointer.point
-        );
+        showImage(lastPointer.img, factor, lastPointer.point);
     }
 
+    // Let the trial runner redraw the loupe right after it swaps the images,
+    // so the magnified view tracks the new pair even under a still mouse.
+    window.IQARefreshZoom = refreshActiveZoom;
+
     function sliderNumber(slider, name, fallback) {
-        var value = parseInt(slider.dataset[name], 10);
+        var value = parseFloat(slider.dataset[name]);
         return Number.isFinite(value) ? value : fallback;
     }
 
     function setSliderValue(slider, rawValue) {
-        var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
-        var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
-        var step = sliderNumber(slider, 'step', 4);
+        var min = sliderNumber(slider, 'min', MIN_MAGNIFICATION);
+        var max = sliderNumber(slider, 'max', MAX_MAGNIFICATION);
+        var step = sliderNumber(slider, 'step', 0.5);
         var value = clampRange(rawValue, min, max);
         value = min + Math.round((value - min) / step) * step;
+        value = Math.round(value * 100) / 100;      // kill float drift
         value = clampRange(value, min, max);
 
         var pct = ((value - min) / (max - min)) * 100;
@@ -434,15 +417,15 @@
         slider.setAttribute('aria-valuenow', String(value));
         if (fill) fill.style.width = pct + '%';
         if (thumb) thumb.style.left = pct + '%';
-        if (output) output.textContent = String(value);
+        if (output) output.textContent = value + '×';   // e.g. "3×"
         refreshActiveZoom();
     }
 
     function setSliderFromClientX(slider, clientX) {
         var rect = slider.getBoundingClientRect();
         if (!rect.width) return;
-        var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
-        var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
+        var min = sliderNumber(slider, 'min', MIN_MAGNIFICATION);
+        var max = sliderNumber(slider, 'max', MAX_MAGNIFICATION);
         var pct = clampUnit((clientX - rect.left) / rect.width);
         setSliderValue(slider, min + pct * (max - min));
     }
@@ -453,7 +436,7 @@
             .forEach(function(slider) {
                 setSliderValue(
                     slider,
-                    sliderNumber(slider, 'value', DEFAULT_FIELD_SIDE)
+                    sliderNumber(slider, 'value', DEFAULT_MAGNIFICATION)
                 );
 
                 var activePointer = null;
@@ -480,11 +463,11 @@
 
                 slider.addEventListener('keydown', function(event) {
                     var current = sliderNumber(
-                        slider, 'value', DEFAULT_FIELD_SIDE
+                        slider, 'value', DEFAULT_MAGNIFICATION
                     );
-                    var min = sliderNumber(slider, 'min', MIN_FIELD_SIDE);
-                    var max = sliderNumber(slider, 'max', MAX_FIELD_SIDE);
-                    var step = sliderNumber(slider, 'step', 4);
+                    var min = sliderNumber(slider, 'min', MIN_MAGNIFICATION);
+                    var max = sliderNumber(slider, 'max', MAX_MAGNIFICATION);
+                    var step = sliderNumber(slider, 'step', 0.5);
                     if (event.key === 'ArrowLeft'
                             || event.key === 'ArrowDown') {
                         event.preventDefault();

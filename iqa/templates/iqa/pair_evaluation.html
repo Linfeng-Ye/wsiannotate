@@ -58,25 +58,25 @@
 {% if study.zoom_enabled %}
 <div class="image-toolbar">
     <label class="zoom-field-control">
-        <span>Field</span>
+        <span>Zoom</span>
         <span class="zoom-field-slider"
                   role="slider"
                   tabindex="0"
-                  aria-label="Zoom field size"
-                  aria-valuemin="40"
-                  aria-valuemax="120"
-                  aria-valuenow="80"
+                  aria-label="Zoom magnification"
+                  aria-valuemin="1.5"
+                  aria-valuemax="6"
+                  aria-valuenow="{{ study.zoom_factor|floatformat:'-1' }}"
                   data-zoom-field-slider
-                  data-min="40"
-                  data-max="120"
-                  data-step="4"
-                  data-value="80">
+                  data-min="1.5"
+                  data-max="6"
+                  data-step="0.5"
+                  data-value="{{ study.zoom_factor|floatformat:'-1' }}">
                 <span class="zoom-field-track">
                     <span class="zoom-field-fill"></span>
                     <span class="zoom-field-thumb"></span>
                 </span>
             </span>
-            <output class="zoom-field-output" data-zoom-field-output>80</output>
+            <output class="zoom-field-output" data-zoom-field-output>{{ study.zoom_factor|floatformat:'-1' }}×</output>
     </label>
 </div>
 {% endif %}
@@ -170,25 +170,25 @@
 {% if study.zoom_enabled %}
 <div class="image-toolbar">
     <label class="zoom-field-control">
-        <span>Field</span>
+        <span>Zoom</span>
         <span class="zoom-field-slider"
                   role="slider"
                   tabindex="0"
-                  aria-label="Zoom field size"
-                  aria-valuemin="40"
-                  aria-valuemax="120"
-                  aria-valuenow="80"
+                  aria-label="Zoom magnification"
+                  aria-valuemin="1.5"
+                  aria-valuemax="6"
+                  aria-valuenow="{{ study.zoom_factor|floatformat:'-1' }}"
                   data-zoom-field-slider
-                  data-min="40"
-                  data-max="120"
-                  data-step="4"
-                  data-value="80">
+                  data-min="1.5"
+                  data-max="6"
+                  data-step="0.5"
+                  data-value="{{ study.zoom_factor|floatformat:'-1' }}">
                 <span class="zoom-field-track">
                     <span class="zoom-field-fill"></span>
                     <span class="zoom-field-thumb"></span>
                 </span>
             </span>
-            <output class="zoom-field-output" data-zoom-field-output>80</output>
+            <output class="zoom-field-output" data-zoom-field-output>{{ study.zoom_factor|floatformat:'-1' }}×</output>
     </label>
 </div>
 {% endif %}
@@ -324,7 +324,7 @@
 {% block extra_js %}
 {% if not ref_mismatch_error %}
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260711-touch"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260712-zoommag"></script>
 {% endif %}
 <script src="{% static 'iqa/js/prefetch.js' %}"></script>
 <script src="{% static 'iqa/js/submit.js' %}?v=20260711-warm"></script>
