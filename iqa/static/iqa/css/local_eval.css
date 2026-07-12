@@ -1,0 +1,95 @@
+/* Local-first 2AFC mode: loading, status, and done panels. */
+
+.local-status {
+    margin: 40px auto;
+    max-width: 520px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 15px;
+    text-align: center;
+}
+
+.local-status[hidden] {
+    display: none;
+}
+
+.local-status.is-error {
+    border-color: var(--warning-line);
+    background: var(--warning-bg);
+    color: var(--warning-text);
+}
+
+.local-done {
+    margin: 48px auto;
+    max-width: 560px;
+    padding: 26px 28px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: center;
+}
+
+.local-done[hidden] {
+    display: none;
+}
+
+.local-done h2 {
+    margin: 0 0 10px;
+    color: var(--text-strong);
+    font-size: 22px;
+}
+
+.local-done p {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.local-done .local-done-count {
+    color: var(--text-strong);
+    font-weight: 720;
+    font-variant-numeric: tabular-nums;
+}
+
+.local-done-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.local-done-actions .btn {
+    min-width: 150px;
+    min-height: 46px;
+    padding: 11px 20px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 720;
+}
+
+.local-done-actions .btn-primary {
+    border-color: rgba(104, 183, 203, 0.72);
+    background: #163744;
+    color: var(--text-strong);
+}
+
+.local-done.is-warning {
+    border-color: var(--warning-line);
+}
+
+.local-done.is-warning h2 {
+    color: var(--warning-text);
+}
+
+/* Tiny inline sync note on the done screen (never a per-click indicator). */
+.local-sync-note {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--muted-2);
+}

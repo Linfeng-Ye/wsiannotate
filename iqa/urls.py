@@ -68,6 +68,26 @@ urlpatterns = [
         name='evaluation_submit',
     ),
     path(
+        'submit-batch/',
+        views.evaluation_submit_batch,
+        name='evaluation_submit_batch',
+    ),
+    path(
+        'study/<int:study_id>/run/',
+        views.pair_local_run,
+        name='pair_local_run',
+    ),
+    path(
+        'study/<int:study_id>/manifest/',
+        views.study_manifest,
+        name='study_manifest',
+    ),
+    path(
+        'study/<int:study_id>/answered/',
+        views.study_answered,
+        name='study_answered',
+    ),
+    path(
         'bulk-create-users/',
         views.bulk_create_users,
         name='bulk_create_users',

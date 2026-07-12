@@ -95,6 +95,16 @@ class Study(models.Model):
                   'references fall back to the classic '
                   'layout.',
     )
+    use_local_mode = models.BooleanField(
+        default=False,
+        help_text='2AFC + shared-reference only: download the '
+                  'whole study to the browser and record answers '
+                  'locally with background sync, so every click is '
+                  'instant even on high-latency networks. The '
+                  'server stays the source of truth via idempotent '
+                  'upserts; unsynced answers resend on reload and '
+                  'on page close.',
+    )
 
     class Meta:
         verbose_name_plural = 'studies'

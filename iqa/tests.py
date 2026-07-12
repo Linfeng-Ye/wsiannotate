@@ -1,3 +1,5 @@
+import json
+
 from django.contrib.auth.models import User
 from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import NoReverseMatch, reverse
@@ -377,6 +379,173 @@ class StaffDashboardTests(TestCase):
         )
 
         self.assertContains(response, "'\t=DANGEROUS()")
+
+
+class LocalModeTests(TestCase):
+    """Local-first 2AFC: manifest, deterministic swap, idempotent batch."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('local01', password='x')
+        self.client.force_login(self.user)
+        self.study = Study.objects.create(
+            name='L', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_RANDOM,
+            pair_shared_ref_layout=True, use_local_mode=True,
+        )
+        self.stims = []
+        for i in range(4):
+            a = Image.objects.create(fname=f'images/l{i}_a.png')
+            b = Image.objects.create(fname=f'images/l{i}_b.png')
+            ref = Image.objects.create(fname=f'images/l{i}_ref.png')
+            self.stims.append(PairStimulus.objects.create(
+                study=self.study, image_a=a, image_b=b,
+                reference_a=ref, reference_b=ref, order=i,
+            ))
+
+    def _manifest(self):
+        return self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+
+    def test_manifest_lists_trials_urls_and_answered(self):
+        PairResponse.objects.create(
+            stimulus=self.stims[0], user=self.user,
+            choice='A', display_choice='A',
+        )
+        data = self._manifest()
+        self.assertEqual(data['total'], 4)
+        self.assertEqual(len(data['trials']), 4)
+        t0 = data['trials'][0]
+        self.assertIn('swap', t0)
+        self.assertTrue(t0['img_a'].startswith('http'))
+        self.assertTrue(t0['img_b'].startswith('http'))
+        self.assertTrue(t0['ref'].startswith('http'))
+        self.assertEqual(data['answered'].get(str(self.stims[0].id)), 'A')
+
+    def test_manifest_order_matches_sampler(self):
+        ids = [t['id'] for t in self._manifest()['trials']]
+        expected = [s.id for s in ordered_stimuli(self.study, self.user)]
+        self.assertEqual(ids, expected)
+
+    def test_swap_is_deterministic_and_selects_the_shown_image(self):
+        first = self._manifest()['trials']
+        second = self._manifest()['trials']
+        self.assertEqual(
+            [t['swap'] for t in first], [t['swap'] for t in second],
+        )
+        by_id = {s.id: s for s in self.stims}
+        for t in first:
+            stim = by_id[t['id']]
+            shown_a = t['img_a'].rsplit('/', 1)[-1]
+            expected = (stim.image_b if t['swap'] else stim.image_a)
+            self.assertEqual(
+                shown_a, str(expected.fname).rsplit('/', 1)[-1],
+            )
+
+    def test_batch_upserts_idempotently(self):
+        payload = {'study_id': self.study.id, 'responses': [
+            {'stimulus_id': self.stims[0].id, 'choice': 'A', 'swap': False},
+            {'stimulus_id': self.stims[1].id, 'choice': 'B', 'swap': True},
+        ]}
+        r = self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['saved'], 2)
+
+        # Resend the first with a changed choice: update, never duplicate.
+        payload['responses'][0]['choice'] = 'B'
+        self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+        rows = PairResponse.objects.filter(
+            user=self.user, stimulus__study=self.study,
+        )
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'B',
+        )
+        swapped = PairResponse.objects.get(
+            stimulus=self.stims[1], user=self.user,
+        )
+        self.assertEqual(swapped.display_choice, 'B')
+        self.assertEqual(swapped.choice, 'A')   # display B + swap -> A
+        self.assertTrue(swapped.was_swapped)
+
+    def test_batch_accepts_beacon_form_payload(self):
+        payload = json.dumps({'study_id': self.study.id, 'responses': [
+            {'stimulus_id': self.stims[2].id, 'choice': 'A', 'swap': False},
+        ]})
+        r = self.client.post(
+            reverse('iqa:evaluation_submit_batch'), data={'payload': payload},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['saved'], 1)
+        self.assertTrue(PairResponse.objects.filter(
+            stimulus=self.stims[2], user=self.user,
+        ).exists())
+
+    def test_batch_ignores_invalid_items(self):
+        payload = {'study_id': self.study.id, 'responses': [
+            {'stimulus_id': self.stims[0].id, 'choice': 'X'},
+            {'stimulus_id': 999999, 'choice': 'A'},
+            {'choice': 'A'},
+            {'stimulus_id': self.stims[1].id, 'choice': 'A', 'swap': False},
+        ]}
+        r = self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+        self.assertEqual(r.json()['saved'], 1)
+        self.assertEqual(PairResponse.objects.filter(
+            user=self.user, stimulus__study=self.study,
+        ).count(), 1)
+
+    def test_answered_endpoint_returns_ids(self):
+        PairResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='A',
+        )
+        r = self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id]),
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['answered'], [str(self.stims[0].id)])
+
+    def test_endpoints_require_local_mode(self):
+        self.study.use_local_mode = False
+        self.study.save(update_fields=['use_local_mode'])
+        self.assertEqual(self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id]),
+        ).status_code, 404)
+        self.assertEqual(self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id]),
+        ).status_code, 404)
+        self.assertRedirects(
+            self.client.get(
+                reverse('iqa:pair_local_run', args=[self.study.id]),
+            ),
+            reverse('iqa:home'), fetch_redirect_response=False,
+        )
+
+    @override_settings(STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND':
+                'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    })
+    def test_run_view_renders_for_local_study(self):
+        r = self.client.get(
+            reverse('iqa:pair_local_run', args=[self.study.id]),
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'data-local-eval')
 
 
 class HealthCheckMiddlewareTests(SimpleTestCase):

@@ -1,9 +1,11 @@
 import csv
+import hashlib
 import json
 import logging
 import random
 import string
 
+from django.db import transaction
 from django.contrib import messages
 from django.contrib.admin.views.decorators import (
     staff_member_required,
@@ -435,6 +437,58 @@ def _refs_match(ref_a, ref_b) -> bool:
     return str(ref_a.fname) == str(ref_b.fname)
 
 
+def _pair_swap(study_id, user_id, stimulus_id) -> bool:
+    """Deterministic A/B swap for a (study, user, pair).
+
+    Local mode needs the swap to be stable across reloads and computable
+    up-front for the whole manifest, so it is seeded from the identifiers
+    rather than drawn randomly and stored in the session.
+    """
+    raw = f'swap:{study_id}:{user_id}:{stimulus_id}'
+    digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
+    return bool(int(digest[:8], 16) & 1)
+
+
+def _record_pair_response(user, stimulus, display_choice, swap):
+    """Upsert one 2AFC response. Idempotent on (stimulus, user).
+
+    ``display_choice`` is the on-screen A/B the annotator clicked; ``swap``
+    is whether A/B were shown flipped, so we can recover the underlying
+    choice and the exact images shown.
+    """
+    choice = display_choice
+    if swap:
+        choice = 'B' if display_choice == 'A' else 'A'
+        shown_image_a = stimulus.image_b
+        shown_image_b = stimulus.image_a
+        shown_reference_a = stimulus.reference_b
+        shown_reference_b = stimulus.reference_a
+    else:
+        shown_image_a = stimulus.image_a
+        shown_image_b = stimulus.image_b
+        shown_reference_a = stimulus.reference_a
+        shown_reference_b = stimulus.reference_b
+
+    PairResponse.objects.update_or_create(
+        stimulus=stimulus, user=user,
+        defaults={
+            'choice': choice,
+            'display_choice': display_choice,
+            'was_swapped': swap,
+            'shown_image_a': str(shown_image_a.fname),
+            'shown_image_b': str(shown_image_b.fname),
+            'shown_reference_a': (
+                str(shown_reference_a.fname)
+                if shown_reference_a else ''
+            ),
+            'shown_reference_b': (
+                str(shown_reference_b.fname)
+                if shown_reference_b else ''
+            ),
+        },
+    )
+
+
 @login_required
 def pair_evaluation(request, study_id, stimulus_id):
     study = get_object_or_404(
@@ -584,38 +638,8 @@ def evaluation_submit(request):
                 stimulus_id=stimulus.id,
             )
         swap = request.POST.get('swap') == '1'
-        choice = display_choice
-        if swap:
-            choice = 'B' if display_choice == 'A' else 'A'
-
-        if swap:
-            shown_image_a = stimulus.image_b
-            shown_image_b = stimulus.image_a
-            shown_reference_a = stimulus.reference_b
-            shown_reference_b = stimulus.reference_a
-        else:
-            shown_image_a = stimulus.image_a
-            shown_image_b = stimulus.image_b
-            shown_reference_a = stimulus.reference_a
-            shown_reference_b = stimulus.reference_b
-
-        PairResponse.objects.update_or_create(
-            stimulus=stimulus, user=request.user,
-            defaults={
-                'choice': choice,
-                'display_choice': display_choice,
-                'was_swapped': swap,
-                'shown_image_a': str(shown_image_a.fname),
-                'shown_image_b': str(shown_image_b.fname),
-                'shown_reference_a': (
-                    str(shown_reference_a.fname)
-                    if shown_reference_a else ''
-                ),
-                'shown_reference_b': (
-                    str(shown_reference_b.fname)
-                    if shown_reference_b else ''
-                ),
-            },
+        _record_pair_response(
+            request.user, stimulus, display_choice, swap,
         )
         sess_key = f'pair_swap_{study.id}_{stimulus.id}'
         request.session.pop(sess_key, None)
@@ -647,6 +671,187 @@ def evaluation_submit(request):
         'iqa/next_stimulus_redirect.html',
         {'study': study},
     )
+
+
+# ---------------------------------------------------------------------------
+# Local-first 2AFC mode
+#
+# The browser downloads the whole study once, drives the trial sequence
+# itself, records each answer to localStorage, and syncs to the server in
+# the background. The server stays the source of truth via idempotent
+# upserts, so a lost background request just re-appears as an unanswered
+# trial (or is re-sent from localStorage on reload / page close).
+# ---------------------------------------------------------------------------
+
+
+def _local_mode_available(study) -> bool:
+    return (
+        study.mode == Study.MODE_2AFC
+        and study.use_local_mode
+    )
+
+
+@login_required
+def pair_local_run(request, study_id):
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    if not _local_mode_available(study):
+        # Fall back to the classic server-driven flow.
+        return redirect('iqa:home')
+    return render(
+        request, 'iqa/pair_local.html', {'study': study},
+    )
+
+
+@login_required
+@require_GET
+def study_manifest(request, study_id):
+    """Everything the browser needs to run the whole 2AFC study offline.
+
+    Returns the trials in this user's deterministic order (each with the
+    already-swap-applied image URLs) plus the set of answers the server
+    already holds, so the client can resume and reconcile.
+    """
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    if not _local_mode_available(study):
+        return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
+
+    user = request.user
+    order = ordered_stimulus_ids(study, user)
+    stimuli = {
+        s.id: s
+        for s in study.pair_stimuli.select_related(
+            'image_a', 'image_b', 'reference_a', 'reference_b',
+        )
+    }
+
+    trials = []
+    for stimulus_id in order:
+        stimulus = stimuli.get(stimulus_id)
+        if stimulus is None:
+            continue
+        swap = _pair_swap(study.id, user.id, stimulus_id)
+        if swap:
+            img_a, img_b = stimulus.image_b, stimulus.image_a
+            ref = stimulus.reference_b
+        else:
+            img_a, img_b = stimulus.image_a, stimulus.image_b
+            ref = stimulus.reference_a
+        trials.append({
+            'id': stimulus_id,
+            'swap': swap,
+            'img_a': _image_url(request, img_a),
+            'img_b': _image_url(request, img_b),
+            'ref': _image_url(request, ref),
+        })
+
+    answered = {}
+    for stimulus_id, display_choice, choice in PairResponse.objects.filter(
+        user=user, stimulus__study=study,
+    ).values_list('stimulus_id', 'display_choice', 'choice'):
+        answered[str(stimulus_id)] = display_choice or choice
+
+    return JsonResponse({
+        'study': {
+            'id': study.id,
+            'name': study.name,
+            'prompt': study.prompt,
+            'zoom_enabled': study.zoom_enabled,
+            'zoom_factor': study.zoom_factor,
+        },
+        'trials': trials,
+        'answered': answered,
+        'total': len(trials),
+    })
+
+
+@login_required
+@require_GET
+def study_answered(request, study_id):
+    """Just the set of stimulus ids the server has an answer for.
+
+    Used by the client to verify completeness on the done screen and to
+    reconcile after a reload without downloading the whole manifest again.
+    """
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    if not _local_mode_available(study):
+        return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
+    ids = PairResponse.objects.filter(
+        user=request.user, stimulus__study=study,
+    ).values_list('stimulus_id', flat=True)
+    return JsonResponse({'answered': [str(i) for i in ids]})
+
+
+@login_required
+@require_POST
+def evaluation_submit_batch(request):
+    """Upsert many 2AFC answers at once. Idempotent on (stimulus, user).
+
+    Accepts either a JSON body (background flush via fetch) or a form field
+    ``payload`` containing the JSON (page-close flush via sendBeacon, which
+    can only send form/blob bodies and carries the CSRF token as a form
+    field). CSRF protection stays on for both paths.
+    """
+    raw = request.POST.get('payload')
+    if raw is None:
+        try:
+            data = json.loads((request.body or b'').decode('utf-8') or '{}')
+        except (ValueError, UnicodeDecodeError):
+            data = {}
+    else:
+        try:
+            data = json.loads(raw)
+        except ValueError:
+            data = {}
+    if not isinstance(data, dict):
+        data = {}
+
+    study = get_object_or_404(
+        Study, id=data.get('study_id'), mode=Study.MODE_2AFC,
+    )
+    responses = data.get('responses')
+    if not isinstance(responses, list):
+        responses = []
+
+    wanted_ids = []
+    for item in responses:
+        if isinstance(item, dict):
+            try:
+                wanted_ids.append(int(item.get('stimulus_id')))
+            except (TypeError, ValueError):
+                continue
+    stimuli = {
+        s.id: s
+        for s in study.pair_stimuli.filter(
+            id__in=wanted_ids,
+        ).select_related(
+            'image_a', 'image_b', 'reference_a', 'reference_b',
+        )
+    }
+
+    saved = 0
+    with transaction.atomic():
+        for item in responses:
+            if not isinstance(item, dict):
+                continue
+            try:
+                stimulus_id = int(item.get('stimulus_id'))
+            except (TypeError, ValueError):
+                continue
+            display_choice = item.get('choice')
+            if display_choice not in (
+                PairResponse.CHOICE_A, PairResponse.CHOICE_B,
+            ):
+                continue
+            stimulus = stimuli.get(stimulus_id)
+            if stimulus is None:
+                continue
+            _record_pair_response(
+                request.user, stimulus, display_choice,
+                bool(item.get('swap')),
+            )
+            saved += 1
+
+    return JsonResponse({'success': True, 'saved': saved})
 
 
 def _gen_password(length=12) -> str:

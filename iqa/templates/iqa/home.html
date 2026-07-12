@@ -116,6 +116,15 @@
         <p style="margin:10px 0 0;color:#555;font-size:14px;">{{ study.prompt }}</p>
         {% endif %}
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            {% if study.mode == '2AFC' and study.use_local_mode %}
+            {% if card.is_completed %}
+            <button type="button" class="btn btn-primary" disabled>Completed</button>
+            {% else %}
+            <a class="btn btn-primary" href="{% url 'iqa:pair_local_run' study.id %}">
+                {% if card.is_started %}Continue Evaluation{% else %}Start Evaluation{% endif %}
+            </a>
+            {% endif %}
+            {% else %}
             <form action="{% url 'iqa:next_stimulus' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="study_id" value="{{ study.id }}">
@@ -129,6 +138,7 @@
                     {% endif %}
                 </button>
             </form>
+            {% endif %}
             {% if study.allow_self_export %}
             <a href="{% url 'iqa:export_own_csv' study.id %}" class="btn" style="background:#28a745;color:#fff;">Export My Responses</a>
             {% endif %}

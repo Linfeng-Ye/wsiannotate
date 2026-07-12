@@ -1,0 +1,120 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}2AFC Evaluation{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-warm">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local">
+<style>.container { max-width: none; padding: 8px 12px; }</style>
+{% endblock %}
+
+{% block content %}
+<div class="evaluation-pair has-zoom sizing-fit_screen"
+     data-local-eval
+     data-study-id="{{ study.id }}"
+     data-csrf="{{ csrf_token }}"
+     data-manifest-url="{% url 'iqa:study_manifest' study.id %}"
+     data-answered-url="{% url 'iqa:study_answered' study.id %}"
+     data-batch-url="{% url 'iqa:evaluation_submit_batch' %}"
+     data-home-url="{% url 'iqa:home' %}"
+     {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
+
+<div class="eval-header">
+    <div class="eval-title">{{ study.name }}</div>
+    <div class="eval-progress" data-progress>0 / 0</div>
+</div>
+
+{% if study.prompt %}
+<div class="eval-prompt">{{ study.prompt }}</div>
+{% endif %}
+
+{% if study.zoom_enabled %}
+<div class="image-toolbar" data-toolbar style="display:none;">
+    <label class="zoom-field-control">
+        <span>Field</span>
+        <span class="zoom-field-slider"
+              role="slider"
+              tabindex="0"
+              aria-label="Zoom field size"
+              aria-valuemin="40"
+              aria-valuemax="120"
+              aria-valuenow="80"
+              data-zoom-field-slider
+              data-min="40"
+              data-max="120"
+              data-step="4"
+              data-value="80">
+            <span class="zoom-field-track">
+                <span class="zoom-field-fill"></span>
+                <span class="zoom-field-thumb"></span>
+            </span>
+        </span>
+        <output class="zoom-field-output" data-zoom-field-output>80</output>
+    </label>
+</div>
+{% endif %}
+
+<div class="pair-shared-ref-layout" data-images style="display:none;">
+    <div class="image-panel">
+        <div class="image-label">Image A</div>
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="A"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image A">
+            <img alt="Image A" class="eval-image"
+                 data-img="a"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image A">
+        </div>
+    </div>
+    <div class="image-panel">
+        <div class="image-label">Reference</div>
+        <div class="image-wrapper">
+            <img alt="Reference image" class="eval-image"
+                 data-img="ref"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Reference">
+        </div>
+    </div>
+    <div class="image-panel">
+        <div class="image-label">Image B</div>
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="B"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image B">
+            <img alt="Image B" class="eval-image"
+                 data-img="b"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image B">
+        </div>
+    </div>
+</div>
+
+<div class="local-status" data-status role="status" aria-live="polite">
+    Loading study&hellip;
+</div>
+
+<div class="local-done" data-done style="display:none;"></div>
+
+<div class="pair-choices pair-choices-centered" data-choices style="display:none;">
+    <button type="button" class="btn pair-btn pair-btn-a" data-choice="A">Image A</button>
+    <button type="button" class="btn pair-btn pair-btn-b" data-choice="B">Image B</button>
+</div>
+
+<div class="submit-section" data-controls style="display:none;">
+    <button type="button" class="btn previous-btn" data-previous disabled>Previous</button>
+    <button type="button" class="btn quit-btn" data-quit>Quit</button>
+    <button type="button" class="btn btn-primary submit-btn" data-submit disabled>Submit</button>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+{% if study.zoom_enabled %}
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260711-touch"></script>
+{% endif %}
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260711-local3"></script>
+{% endblock %}
