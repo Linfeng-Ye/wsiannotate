@@ -57,6 +57,7 @@
     var current = -1;            // index into trials
     var chosen = null;           // 'A' | 'B' | null for the current trial
     var finished = false;
+    var resyncInFlight = false;
 
     // --- localStorage ------------------------------------------------------
     function loadLocal() {
@@ -166,6 +167,45 @@
             updateProgress();
             return items.length;
         }).catch(function () { return 0; });
+    }
+
+    // Pull the latest server progress and catch up. Called when this tab
+    // regains focus/visibility, so a device the annotator left behind (while
+    // they worked on another laptop) learns what the server now has instead of
+    // re-showing — and overwriting — pairs another session already answered.
+    function resyncFromServer() {
+        if (finished || resyncInFlight) return;
+        resyncInFlight = true;
+        flushBatch();   // also push anything this device still owes
+        fetch(cfg.answeredUrl, { credentials: 'same-origin' })
+            .then(function (r) { return r.ok ? r.json() : null; })
+            .then(function (data) {
+                if (data && data.answered) {
+                    var changed = false;
+                    data.answered.forEach(function (id) {
+                        id = String(id);
+                        if (serverChoice[id] == null) {
+                            serverChoice[id] =
+                                responses[id] ? responses[id].choice : 'A';
+                            changed = true;
+                        }
+                        if (responses[id]) responses[id].synced = true;
+                    });
+                    if (changed) { saveLocal(); updateProgress(); }
+                    // If the trial on screen was answered elsewhere and the
+                    // annotator hasn't started this one, jump to the true
+                    // position rather than re-answering it.
+                    if (!finished && chosen == null
+                            && current >= 0 && current < trials.length
+                            && isDone(trials[current].id)) {
+                        var next = firstUnanswered();
+                        if (next === -1) showDone();
+                        else renderTrial(next);
+                    }
+                }
+            })
+            .catch(function () { /* stay put; retried on next focus */ })
+            .then(function () { resyncInFlight = false; });
     }
 
     // Page-close flush: sendBeacon can only carry a form/blob body, so the
@@ -431,14 +471,18 @@
         }
     });
 
-    // Flush on the way out (tab close, navigation, backgrounding).
+    // Flush on the way out (tab close, navigation, backgrounding); pull the
+    // latest server progress on the way back in (returning to this tab).
     window.addEventListener('pagehide', beaconFlush);
+    window.addEventListener('focus', resyncFromServer);
     document.addEventListener('visibilitychange', function () {
         if (document.visibilityState === 'hidden') beaconFlush();
+        else resyncFromServer();
     });
 
-    // Periodic retry of anything still unsynced (belt-and-suspenders; never
-    // on the click path).
+    // Belt-and-suspenders push retry of anything still unsynced (never on the
+    // click path). This only re-sends this device's own answers; it does not
+    // pull progress — that is event-driven via resyncFromServer.
     setInterval(function () {
         if (document.visibilityState === 'visible') flushBatch();
     }, RETRY_INTERVAL_MS);
