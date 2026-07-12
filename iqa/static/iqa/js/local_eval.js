@@ -42,9 +42,11 @@
     var statusEl = root.querySelector('[data-status]');
     var toolbarEl = root.querySelector('[data-toolbar]');
     var doneEl = root.querySelector('[data-done]');
-    var progressEl = root.querySelector('[data-progress]');
+    var positionEl = root.querySelector('[data-position]');
+    var answeredEl = root.querySelector('[data-answered]');
     var submitBtn = root.querySelector('[data-submit]');
     var prevBtn = root.querySelector('[data-previous]');
+    var nextBtn = root.querySelector('[data-next]');
     var quitBtn = root.querySelector('[data-quit]');
     var pairBtns = root.querySelectorAll('.pair-btn');
     var choiceWrappers = root.querySelectorAll('[data-image-choice]');
@@ -91,9 +93,22 @@
         return n;
     }
     function updateProgress() {
-        if (progressEl) {
-            progressEl.textContent = doneCount() + ' / ' + trials.length;
+        // Position (which pair you're on) changes as you navigate; the
+        // answered count is your overall progress.
+        if (positionEl) {
+            positionEl.textContent = (current >= 0)
+                ? (current + 1) + ' / ' + trials.length
+                : '– / ' + trials.length;
         }
+        if (answeredEl) answeredEl.textContent = String(doneCount());
+    }
+
+    // The working position: the first unanswered pair (or the last pair once
+    // everything is answered). You can review backward from here but not skip
+    // ahead past it.
+    function frontierIndex() {
+        var f = firstUnanswered();
+        return f === -1 ? (trials.length - 1) : f;
     }
 
     // --- Background sync ---------------------------------------------------
@@ -143,7 +158,15 @@
                 }],
             }),
         }).then(function (resp) {
-            if (resp.ok) { markSynced(id); saveLocal(); }
+            return resp.ok ? resp.json() : null;
+        }).then(function (data) {
+            if (!data) return;
+            markSynced(id);
+            saveLocal();
+            // If the server kept an existing answer, it hands back the true
+            // answered set — reconcile so a stale device jumps ahead instead
+            // of re-judging pairs already done elsewhere.
+            if (data.answered) applyServerAnswered(data.answered);
         }).catch(function () { /* retried later */ });
     }
 
@@ -163,18 +186,44 @@
                 responses: items,
             }),
         }).then(function (resp) {
-            if (!resp.ok) return 0;
+            return resp.ok ? resp.json() : null;
+        }).then(function (data) {
+            if (!data) return 0;
             items.forEach(function (it) { markSynced(it.stimulus_id); });
             saveLocal();
             updateProgress();
+            if (data.answered) applyServerAnswered(data.answered);
             return items.length;
         }).catch(function () { return 0; });
     }
 
+    // Merge the server's authoritative answered set and catch up. If the pair
+    // on screen was already answered elsewhere and the annotator hasn't started
+    // it, jump to the true position instead of re-showing a done pair.
+    function applyServerAnswered(answered) {
+        if (!answered) return;
+        var changed = false;
+        answered.forEach(function (id) {
+            id = String(id);
+            if (serverChoice[id] == null) {
+                serverChoice[id] = responses[id] ? responses[id].choice : 'A';
+                changed = true;
+            }
+            if (responses[id]) responses[id].synced = true;
+        });
+        if (changed) { saveLocal(); updateProgress(); }
+        if (!finished && chosen == null
+                && current >= 0 && current < trials.length
+                && isDone(trials[current].id)) {
+            var next = firstUnanswered();
+            if (next === -1) showDone();
+            else renderTrial(next);
+        }
+    }
+
     // Pull the latest server progress and catch up. Called when this tab
     // regains focus/visibility, so a device the annotator left behind (while
-    // they worked on another laptop) learns what the server now has instead of
-    // re-showing — and overwriting — pairs another session already answered.
+    // they worked on another laptop) learns what the server now has.
     function resyncFromServer() {
         if (finished || resyncInFlight) return;
         resyncInFlight = true;
@@ -182,29 +231,7 @@
         fetch(cfg.answeredUrl, { credentials: 'same-origin' })
             .then(function (r) { return r.ok ? r.json() : null; })
             .then(function (data) {
-                if (data && data.answered) {
-                    var changed = false;
-                    data.answered.forEach(function (id) {
-                        id = String(id);
-                        if (serverChoice[id] == null) {
-                            serverChoice[id] =
-                                responses[id] ? responses[id].choice : 'A';
-                            changed = true;
-                        }
-                        if (responses[id]) responses[id].synced = true;
-                    });
-                    if (changed) { saveLocal(); updateProgress(); }
-                    // If the trial on screen was answered elsewhere and the
-                    // annotator hasn't started this one, jump to the true
-                    // position rather than re-answering it.
-                    if (!finished && chosen == null
-                            && current >= 0 && current < trials.length
-                            && isDone(trials[current].id)) {
-                        var next = firstUnanswered();
-                        if (next === -1) showDone();
-                        else renderTrial(next);
-                    }
-                }
+                if (data) applyServerAnswered(data.answered);
             })
             .catch(function () { /* stay put; retried on next focus */ })
             .then(function () { resyncInFlight = false; });
@@ -268,6 +295,7 @@
         if (imgEls.ref) imgEls.ref.src = t.ref || '';
         setChoice(choiceFor(t.id));    // restore prior answer or clear
         prevBtn.disabled = (i <= 0);
+        nextBtn.disabled = (i >= frontierIndex());
         updateProgress();
         preload(i + 1);
     }
@@ -467,6 +495,9 @@
     submitBtn.addEventListener('click', submit);
     prevBtn.addEventListener('click', function () {
         if (current > 0) renderTrial(current - 1);
+    });
+    nextBtn.addEventListener('click', function () {
+        if (current < frontierIndex()) renderTrial(current + 1);
     });
     quitBtn.addEventListener('click', goHome);
 

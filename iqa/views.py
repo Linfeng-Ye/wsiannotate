@@ -876,7 +876,17 @@ def evaluation_submit_batch(request):
             else:
                 kept += 1
 
-    return JsonResponse({'success': True, 'saved': saved, 'kept': kept})
+    result = {'success': True, 'saved': saved, 'kept': kept}
+    if kept:
+        # At least one write hit a pair the server already had — this client
+        # is likely behind (e.g. a laptop left open while another device moved
+        # ahead). Hand back the authoritative answered set so it can reconcile
+        # and jump to the true position instead of re-showing done pairs.
+        answered_ids = PairResponse.objects.filter(
+            user=request.user, stimulus__study=study,
+        ).values_list('stimulus_id', flat=True)
+        result['answered'] = [str(i) for i in answered_ids]
+    return JsonResponse(result)
 
 
 def _gen_password(length=12) -> str:

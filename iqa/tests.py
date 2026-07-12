@@ -511,6 +511,37 @@ class LocalModeTests(TestCase):
             ).display_choice, 'B',
         )
 
+    def test_kept_write_returns_answered_set_for_client_catchup(self):
+        url = reverse('iqa:evaluation_submit_batch')
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+                {'stimulus_id': self.stims[1].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+
+        # A stale forward write is kept -> response hands back the true state.
+        kept = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json').json()
+        self.assertEqual(kept['kept'], 1)
+        self.assertEqual(
+            set(kept['answered']),
+            {str(self.stims[0].id), str(self.stims[1].id)},
+        )
+
+        # A clean forward insert stays tiny (no answered set).
+        clean = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[2].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json').json()
+        self.assertEqual(clean['saved'], 1)
+        self.assertNotIn('answered', clean)
+
     def test_batch_accepts_beacon_form_payload(self):
         payload = json.dumps({'study_id': self.study.id, 'responses': [
             {'stimulus_id': self.stims[2].id, 'choice': 'A', 'swap': False},

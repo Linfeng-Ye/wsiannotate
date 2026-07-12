@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-warm">
-<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local7">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
@@ -21,7 +21,10 @@
 
 <div class="eval-header">
     <div class="eval-title">{{ study.name }}</div>
-    <div class="eval-progress" data-progress>0 / 0</div>
+    <div class="eval-progress">
+        <span data-position>&ndash;</span>
+        <span class="eval-progress-sub"><span data-answered>0</span> done</span>
+    </div>
 </div>
 
 {% if study.prompt %}
@@ -105,6 +108,7 @@
 
 <div class="submit-section" data-controls style="display:none;">
     <button type="button" class="btn previous-btn" data-previous disabled>Previous</button>
+    <button type="button" class="btn next-btn" data-next disabled>Next</button>
     <button type="button" class="btn quit-btn" data-quit>Quit</button>
     <button type="button" class="btn btn-primary submit-btn" data-submit disabled>Submit</button>
 </div>
@@ -116,5 +120,5 @@
 {% if study.zoom_enabled %}
 <script src="{% static 'iqa/js/zoom.js' %}?v=20260711-touch"></script>
 {% endif %}
-<script src="{% static 'iqa/js/local_eval.js' %}?v=20260711-local5"></script>
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260711-local7"></script>
 {% endblock %}

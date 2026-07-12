@@ -93,3 +93,56 @@
     font-size: 13px;
     color: var(--muted-2);
 }
+
+/* Header: current position (line 1) + answered count (line 2). */
+.eval-progress-sub {
+    display: block;
+    margin-top: 2px;
+    font-size: 11px;
+    font-weight: 600;
+    color: var(--muted-2);
+}
+
+/* Next button mirrors the Previous/nav button styling (scoped to local mode
+   so the shared evaluation stylesheet stays untouched). */
+.next-btn {
+    border-radius: 7px;
+    font-weight: 760;
+    cursor: pointer;
+    transition:
+        background 0.14s ease,
+        border-color 0.14s ease,
+        color 0.14s ease,
+        box-shadow 0.14s ease;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 14px;
+    min-width: 132px;
+    min-height: 44px;
+    padding: 10px 22px;
+}
+
+.evaluation-pair .next-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 48px;
+    padding: 9px 13px;
+}
+
+.next-btn:hover:not(:disabled) {
+    border-color: var(--line-strong);
+    background: var(--surface-3);
+}
+
+.next-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(104, 183, 203, 0.28);
+}
+
+.next-btn:disabled {
+    border-color: #363d45;
+    background: #2a3036;
+    color: #828c96;
+    cursor: not-allowed;
+}
