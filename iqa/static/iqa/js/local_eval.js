@@ -106,6 +106,7 @@
                     stimulus_id: parseInt(id, 10),
                     choice: r.choice,
                     swap: !!r.swap,
+                    revise: !!r.revise,
                 });
             }
         });
@@ -138,6 +139,7 @@
                     stimulus_id: parseInt(id, 10),
                     choice: r.choice,
                     swap: !!r.swap,
+                    revise: !!r.revise,
                 }],
             }),
         }).then(function (resp) {
@@ -291,10 +293,18 @@
         if (finished) return;
         var t = trials[current];
         if (!t || (chosen !== 'A' && chosen !== 'B')) return;
-        responses[sid(t)] = { choice: chosen, swap: !!t.swap, synced: false };
+        var id = sid(t);
+        // A revise = re-answering a pair we already know is answered (the
+        // annotator navigated back to it). A first-time forward answer is not
+        // a revise, so the server will not let it clobber an answer made on
+        // another device the annotator left open.
+        var revise = isDone(id);
+        responses[id] = {
+            choice: chosen, swap: !!t.swap, synced: false, revise: revise,
+        };
         saveLocal();
         updateProgress();
-        syncOne(sid(t));                // background, non-blocking
+        syncOne(id);                    // background, non-blocking
         var next = nextUnansweredFrom(current + 1);
         if (next === -1) { showDone(); } else { renderTrial(next); }
     }

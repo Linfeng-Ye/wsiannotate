@@ -451,12 +451,20 @@ def _pair_swap(study_id, user_id, stimulus_id) -> bool:
     return bool(int(digest[:8], 16) & 1)
 
 
-def _record_pair_response(user, stimulus, display_choice, swap):
-    """Upsert one 2AFC response. Idempotent on (stimulus, user).
+def _record_pair_response(user, stimulus, display_choice, swap, revise=True):
+    """Record one 2AFC response for (stimulus, user).
 
     ``display_choice`` is the on-screen A/B the annotator clicked; ``swap``
     is whether A/B were shown flipped, so we can recover the underlying
     choice and the exact images shown.
+
+    ``revise`` controls what happens when the server already has an answer
+    for this pair. A deliberate revision (the annotator navigated back to a
+    pair they know they answered and changed it) overwrites. A *forward*
+    answer does not: if the pair is already answered — e.g. on another
+    device the annotator left open — the existing answer is kept, so a stale
+    laptop can never clobber work done elsewhere. First write wins; only an
+    explicit revise replaces it. Returns True if written, False if kept.
     """
     choice = display_choice
     if swap:
@@ -471,24 +479,32 @@ def _record_pair_response(user, stimulus, display_choice, swap):
         shown_reference_a = stimulus.reference_a
         shown_reference_b = stimulus.reference_b
 
-    PairResponse.objects.update_or_create(
-        stimulus=stimulus, user=user,
-        defaults={
-            'choice': choice,
-            'display_choice': display_choice,
-            'was_swapped': swap,
-            'shown_image_a': str(shown_image_a.fname),
-            'shown_image_b': str(shown_image_b.fname),
-            'shown_reference_a': (
-                str(shown_reference_a.fname)
-                if shown_reference_a else ''
-            ),
-            'shown_reference_b': (
-                str(shown_reference_b.fname)
-                if shown_reference_b else ''
-            ),
-        },
+    defaults = {
+        'choice': choice,
+        'display_choice': display_choice,
+        'was_swapped': swap,
+        'shown_image_a': str(shown_image_a.fname),
+        'shown_image_b': str(shown_image_b.fname),
+        'shown_reference_a': (
+            str(shown_reference_a.fname) if shown_reference_a else ''
+        ),
+        'shown_reference_b': (
+            str(shown_reference_b.fname) if shown_reference_b else ''
+        ),
+    }
+
+    obj, created = PairResponse.objects.get_or_create(
+        stimulus=stimulus, user=user, defaults=defaults,
     )
+    if created:
+        return True
+    if not revise:
+        # Forward answer to an already-answered pair: keep what is there.
+        return False
+    for field, value in defaults.items():
+        setattr(obj, field, value)
+    obj.save(update_fields=list(defaults.keys()))
+    return True
 
 
 @login_required
@@ -833,6 +849,7 @@ def evaluation_submit_batch(request):
     }
 
     saved = 0
+    kept = 0
     with transaction.atomic():
         for item in responses:
             if not isinstance(item, dict):
@@ -849,13 +866,17 @@ def evaluation_submit_batch(request):
             stimulus = stimuli.get(stimulus_id)
             if stimulus is None:
                 continue
-            _record_pair_response(
+            wrote = _record_pair_response(
                 request.user, stimulus, display_choice,
                 bool(item.get('swap')),
+                revise=bool(item.get('revise')),
             )
-            saved += 1
+            if wrote:
+                saved += 1
+            else:
+                kept += 1
 
-    return JsonResponse({'success': True, 'saved': saved})
+    return JsonResponse({'success': True, 'saved': saved, 'kept': kept})
 
 
 def _gen_password(length=12) -> str:

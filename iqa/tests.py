@@ -442,24 +442,22 @@ class LocalModeTests(TestCase):
                 shown_a, str(expected.fname).rsplit('/', 1)[-1],
             )
 
-    def test_batch_upserts_idempotently(self):
-        payload = {'study_id': self.study.id, 'responses': [
-            {'stimulus_id': self.stims[0].id, 'choice': 'A', 'swap': False},
-            {'stimulus_id': self.stims[1].id, 'choice': 'B', 'swap': True},
-        ]}
-        r = self.client.post(
-            reverse('iqa:evaluation_submit_batch'),
-            data=json.dumps(payload), content_type='application/json',
-        )
+    def test_batch_revise_updates_in_place_without_duplicating(self):
+        url = reverse('iqa:evaluation_submit_batch')
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A', 'swap': False},
+                {'stimulus_id': self.stims[1].id, 'choice': 'B', 'swap': True},
+            ]}), content_type='application/json')
         self.assertEqual(r.status_code, 200)
         self.assertEqual(r.json()['saved'], 2)
 
-        # Resend the first with a changed choice: update, never duplicate.
-        payload['responses'][0]['choice'] = 'B'
-        self.client.post(
-            reverse('iqa:evaluation_submit_batch'),
-            data=json.dumps(payload), content_type='application/json',
-        )
+        # A deliberate revise updates in place, never duplicates.
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': True},
+            ]}), content_type='application/json')
         rows = PairResponse.objects.filter(
             user=self.user, stimulus__study=self.study,
         )
@@ -475,6 +473,43 @@ class LocalModeTests(TestCase):
         self.assertEqual(swapped.display_choice, 'B')
         self.assertEqual(swapped.choice, 'A')   # display B + swap -> A
         self.assertTrue(swapped.was_swapped)
+
+    def test_forward_answer_never_overwrites_existing(self):
+        """A stale device must not clobber an answer made elsewhere."""
+        url = reverse('iqa:evaluation_submit_batch')
+        # Device 1 answers the pair (forward).
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+
+        # Stale device 2 forward-answers the same pair differently -> KEEP 'A'.
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+        self.assertEqual(r.json()['saved'], 0)
+        self.assertEqual(r.json()['kept'], 1)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'A',
+        )
+
+        # A deliberate revise IS allowed to overwrite.
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': True},
+            ]}), content_type='application/json')
+        self.assertEqual(r.json()['saved'], 1)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'B',
+        )
 
     def test_batch_accepts_beacon_form_payload(self):
         payload = json.dumps({'study_id': self.study.id, 'responses': [
