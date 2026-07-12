@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-warm">
-<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local8">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260712-local13">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
@@ -119,6 +119,14 @@
     <button type="button" class="btn btn-primary submit-btn" data-submit disabled>Submit</button>
 </div>
 
+<div class="kbd-hints" data-hints style="display:none;">
+    <span class="kbd-hint"><kbd>A</kbd> Image&nbsp;A</span>
+    <span class="kbd-hint"><kbd>D</kbd> Image&nbsp;B</span>
+    <span class="kbd-hint"><kbd>&larr;</kbd> Previous</span>
+    <span class="kbd-hint"><kbd>&rarr;</kbd> Next</span>
+    <span class="kbd-hint"><kbd>S</kbd> Submit</span>
+</div>
+
 </div>
 {% endblock %}
 
@@ -126,5 +134,5 @@
 {% if study.zoom_enabled %}
 <script src="{% static 'iqa/js/zoom.js' %}?v=20260712-zoommag"></script>
 {% endif %}
-<script src="{% static 'iqa/js/local_eval.js' %}?v=20260712-local12"></script>
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260712-local14"></script>
 {% endblock %}

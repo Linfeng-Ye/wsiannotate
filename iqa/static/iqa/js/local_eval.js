@@ -45,6 +45,7 @@
     var statusEl = root.querySelector('[data-status]');
     var toolbarEl = root.querySelector('[data-toolbar]');
     var doneEl = root.querySelector('[data-done]');
+    var hintsEl = root.querySelector('[data-hints]');
     var imageWarnEl = root.querySelector('[data-image-warning]');
     var positionEl = root.querySelector('[data-position]');
     var answeredEl = root.querySelector('[data-answered]');
@@ -389,6 +390,7 @@
         disp(toolbarEl, '');
         disp(choicesEl, '');
         disp(controlsEl, '');
+        disp(hintsEl, '');
     }
 
     function showDone() {
@@ -397,6 +399,7 @@
         disp(toolbarEl, 'none');
         disp(choicesEl, 'none');
         disp(controlsEl, 'none');
+        disp(hintsEl, 'none');
         disp(statusEl, 'none');
         disp(doneEl, '');
         doneEl.className = 'local-done';
@@ -566,11 +569,11 @@
     document.addEventListener('keydown', function (e) {
         if (finished) return;
         var key = e.key.toUpperCase();
-        // A / 1 pick the left image; B / S / 2 pick the right image (A+S are
-        // the natural left-hand keys).
+        // Gaming-style left-hand cluster: A picks the left image, D the right,
+        // S submits (B / 2 also pick right; Enter also submits).
         if (key === 'A' || e.key === '1') setChoice('A');
-        else if (key === 'B' || key === 'S' || e.key === '2') setChoice('B');
-        else if (e.key === 'Enter' && !submitBtn.disabled) {
+        else if (key === 'B' || key === 'D' || e.key === '2') setChoice('B');
+        else if ((e.key === 'Enter' || key === 'S') && !submitBtn.disabled) {
             e.preventDefault();
             submit();
         }
@@ -607,6 +610,7 @@
         disp(toolbarEl, 'none');
         disp(choicesEl, 'none');
         disp(controlsEl, 'none');
+        disp(hintsEl, 'none');
         disp(doneEl, 'none');
         disp(statusEl, '');
         statusEl.className = 'local-status is-error';
