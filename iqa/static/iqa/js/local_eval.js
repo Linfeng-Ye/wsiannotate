@@ -135,43 +135,8 @@
         serverChoice[id] = choiceFor(id);
     }
 
-    // One fire-and-forget POST for a single answer. Uses the batch endpoint
-    // (pure idempotent upsert) so the server does no sampler/next-stimulus
-    // work on the click path — the client drives the sequence itself.
-    function syncOne(id) {
-        id = String(id);
-        var r = responses[id];
-        if (!r) return;
-        fetch(cfg.batchUrl, {
-            method: 'POST',
-            credentials: 'same-origin',
-            headers: {
-                'Content-Type': 'application/json',
-                'X-CSRFToken': cfg.csrf,
-            },
-            body: JSON.stringify({
-                study_id: parseInt(cfg.studyId, 10),
-                responses: [{
-                    stimulus_id: parseInt(id, 10),
-                    choice: r.choice,
-                    swap: !!r.swap,
-                    revise: !!r.revise,
-                }],
-            }),
-        }).then(function (resp) {
-            return resp.ok ? resp.json() : null;
-        }).then(function (data) {
-            if (!data) return;
-            markSynced(id);
-            saveLocal();
-            // If the server kept an existing answer, it hands back the true
-            // answered set — reconcile so a stale device jumps ahead instead
-            // of re-judging pairs already done elsewhere.
-            if (data.answered) applyServerAnswered(data.answered);
-        }).catch(function () { /* retried later */ });
-    }
-
-    // Batch flush of everything still unsynced (retry / reload / done).
+    // Batch flush of everything still unsynced (per submit / retry / reload /
+    // done). Idempotent upsert, so re-sending an item is harmless.
     function flushBatch() {
         var items = unsyncedItems();
         if (!items.length) return Promise.resolve(0);
@@ -352,7 +317,10 @@
         };
         saveLocal();
         updateProgress();
-        syncOne(id);                    // background, non-blocking
+        // Push everything still unsynced, not just this one — so the first
+        // submit after the network returns carries the whole backlog of
+        // earlier failed answers, rather than waiting for the retry timer.
+        flushBatch();                   // background, non-blocking
         var next = nextUnansweredFrom(current + 1);
         if (next === -1) { showDone(); } else { renderTrial(next); }
     }
