@@ -326,11 +326,10 @@
         img.addEventListener('pointerup', endTouch);
         img.addEventListener('pointercancel', endTouch);
 
-        img.addEventListener('pointerleave', function(event) {
-            if (event.pointerType === 'mouse') {
-                hide();
-            }
-        });
+        // Intentionally no pointerleave hide: when the mouse leaves the image
+        // the loupe stays frozen on the last spot so the annotator can keep
+        // studying the magnified view. It follows the next hover, and refreshes
+        // to the new images when the pair changes.
 
         img.addEventListener('error', function() {
             hideImage(img);
