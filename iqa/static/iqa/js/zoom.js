@@ -231,6 +231,10 @@
         nodes.source.style.display = 'block';
     }
 
+    // Distance (px) a touch must travel before it counts as a zoom drag
+    // rather than a tap that selects the image.
+    var TOUCH_DRAG_THRESHOLD = 8;
+
     function attachImage(img, groupImages, factor) {
         if (img.dataset.zoomAttached === '1') return;
         var nodes = ensureZoomNodes(img);
@@ -238,7 +242,7 @@
         img._zoomNodes = nodes;
         img.dataset.zoomAttached = '1';
 
-        img.addEventListener('mousemove', function(event) {
+        function update(event) {
             var point = relativePoint(img, event);
             var fieldSide = fieldSideFor(img);
             lastPointer = {
@@ -263,15 +267,75 @@
                 return;
             }
             showImage(img, factor, fieldSide, point);
-        });
+        }
 
-        img.addEventListener('mouseleave', function() {
+        function hide() {
             lastPointer = null;
             if (groupImages && groupImages.length > 1) {
                 hideImages(groupImages);
                 return;
             }
             hideImage(img);
+        }
+
+        // Touch drag state: track the active finger and whether it has
+        // moved far enough to be treated as a loupe drag.
+        var touchId = null;
+        var dragging = false;
+        var startX = 0;
+        var startY = 0;
+
+        img.addEventListener('pointermove', function(event) {
+            // Mouse hovers the loupe around directly.
+            if (event.pointerType === 'mouse') {
+                update(event);
+                return;
+            }
+            if (event.pointerId !== touchId) return;
+            if (!dragging) {
+                if (Math.abs(event.clientX - startX) < TOUCH_DRAG_THRESHOLD
+                        && Math.abs(event.clientY - startY)
+                            < TOUCH_DRAG_THRESHOLD) {
+                    return;
+                }
+                dragging = true;
+                try {
+                    img.setPointerCapture(touchId);
+                } catch (err) { /* capture is best-effort */ }
+            }
+            // Keep the finger drag from scrolling the page.
+            event.preventDefault();
+            update(event);
+        });
+
+        img.addEventListener('pointerdown', function(event) {
+            if (event.pointerType === 'mouse') return;
+            touchId = event.pointerId;
+            startX = event.clientX;
+            startY = event.clientY;
+            dragging = false;
+        });
+
+        function endTouch(event) {
+            if (event.pointerType === 'mouse') return;
+            if (event.pointerId !== touchId) return;
+            touchId = null;
+            if (dragging) {
+                dragging = false;
+                hide();
+                // Swallow the trailing click so a drag never toggles the
+                // A/B selection; a plain tap (no drag) still selects.
+                event.preventDefault();
+            }
+        }
+
+        img.addEventListener('pointerup', endTouch);
+        img.addEventListener('pointercancel', endTouch);
+
+        img.addEventListener('pointerleave', function(event) {
+            if (event.pointerType === 'mouse') {
+                hide();
+            }
         });
 
         img.addEventListener('error', function() {

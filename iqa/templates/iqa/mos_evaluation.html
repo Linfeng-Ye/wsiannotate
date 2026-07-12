@@ -3,7 +3,7 @@
 {% block title %}MOS Evaluation{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260704-studio">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-fit">
 {% endblock %}
 
 {% block content %}
@@ -143,9 +143,10 @@
 
 {% block extra_js %}
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260704-research"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260711-touch"></script>
 {% endif %}
 <script src="{% static 'iqa/js/prefetch.js' %}"></script>
+<script src="{% static 'iqa/js/submit.js' %}?v=20260711-fit"></script>
 <script>
 document.addEventListener('DOMContentLoaded', function() {
     var wrap = document.querySelector('[data-scale]');
@@ -216,12 +217,17 @@ document.addEventListener('DOMContentLoaded', function() {
         textbox.focus();
 
         form.addEventListener('submit', function(e) {
+            e.preventDefault();
             if (!validateScore()) {
-                e.preventDefault();
                 return;
             }
             submit.disabled = true;
             submit.textContent = 'Submitting\u2026';
+            if (window.iqaAjaxSubmit) {
+                window.iqaAjaxSubmit(this);
+            } else {
+                HTMLFormElement.prototype.submit.call(this);
+            }
         });
     } else {
         var buttons = document.querySelectorAll('.scale-btn');
@@ -255,12 +261,17 @@ document.addEventListener('DOMContentLoaded', function() {
         });
 
         form.addEventListener('submit', function(e) {
+            e.preventDefault();
             if (!hidden.value) {
-                e.preventDefault();
                 return;
             }
             submit.disabled = true;
             submit.textContent = 'Submitting\u2026';
+            if (window.iqaAjaxSubmit) {
+                window.iqaAjaxSubmit(this);
+            } else {
+                HTMLFormElement.prototype.submit.call(this);
+            }
         });
     }
 });
