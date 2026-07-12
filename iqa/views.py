@@ -286,6 +286,8 @@ def _next_url_for_study(study, user):
 def next_stimulus(request):
     study_id = request.POST.get('study_id')
     study = get_object_or_404(Study, id=study_id)
+    if _local_mode_available(study):
+        return redirect('iqa:pair_local_run', study_id=study.id)
     stimulus = get_next_stimulus(study, request.user)
 
     if stimulus is None:
@@ -494,6 +496,8 @@ def pair_evaluation(request, study_id, stimulus_id):
     study = get_object_or_404(
         Study, id=study_id, mode=Study.MODE_2AFC,
     )
+    if _local_mode_available(study):
+        return redirect('iqa:pair_local_run', study_id=study.id)
     stimulus = get_object_or_404(
         PairStimulus, id=stimulus_id, study=study,
     )

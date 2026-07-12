@@ -531,6 +531,23 @@ class LocalModeTests(TestCase):
             reverse('iqa:home'), fetch_redirect_response=False,
         )
 
+    def test_classic_entry_points_redirect_to_local_run(self):
+        run = reverse('iqa:pair_local_run', args=[self.study.id])
+        # Old direct/bookmarked evaluation URL funnels into local mode.
+        self.assertRedirects(
+            self.client.get(reverse('iqa:pair_evaluation', kwargs={
+                'study_id': self.study.id, 'stimulus_id': self.stims[0].id,
+            })),
+            run, fetch_redirect_response=False,
+        )
+        # The Start/Continue POST funnels into local mode too.
+        self.assertRedirects(
+            self.client.post(reverse('iqa:next_stimulus'), {
+                'study_id': self.study.id,
+            }),
+            run, fetch_redirect_response=False,
+        )
+
     @override_settings(STORAGES={
         'default': {
             'BACKEND': 'django.core.files.storage.FileSystemStorage',
