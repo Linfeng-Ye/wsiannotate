@@ -566,9 +566,22 @@
             && e.target.closest('[data-zoom-field-slider]'));
     }
 
+    // A choice control focused by an earlier mouse click would light up with a
+    // :focus-visible ring the instant the keyboard is used — leaving a stray
+    // blue highlight on the wrong image. Drop that focus so only the selected
+    // image (via .selected) stays highlighted.
+    function blurChoiceFocus() {
+        var el = document.activeElement;
+        if (el && el.blur && el.matches
+                && (el.matches('[data-image-choice]') || el.matches('.pair-btn'))) {
+            el.blur();
+        }
+    }
+
     document.addEventListener('keydown', function (e) {
         if (finished) return;
         var key = e.key.toUpperCase();
+        var handled = true;
         // Gaming-style left-hand cluster: A picks the left image, D the right,
         // S submits (B / 2 also pick right; Enter also submits).
         if (key === 'A' || e.key === '1') setChoice('A');
@@ -585,7 +598,10 @@
         } else if (e.key === 'ArrowRight' && !onZoomSlider(e)) {
             e.preventDefault();
             if (canGoNext()) renderTrial(current + 1);
+        } else {
+            handled = false;
         }
+        if (handled) blurChoiceFocus();
     });
 
     // Flush on the way out (tab close, navigation, backgrounding); pull the
