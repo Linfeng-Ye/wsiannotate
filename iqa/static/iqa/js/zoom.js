@@ -341,6 +341,19 @@
         img.addEventListener('error', function() {
             hideImage(img);
         });
+
+        // If the loupe is open over this image (or its group) and the picture
+        // changes underneath a stationary pointer — e.g. the annotator advances
+        // to the next pair with the keyboard while hovering — redraw it so it
+        // shows the new image, not the stale one, without needing a mouse move.
+        img.addEventListener('load', function() {
+            if (!lastPointer) return;
+            if (lastPointer.img === img
+                    || (lastPointer.groupImages
+                        && lastPointer.groupImages.indexOf(img) !== -1)) {
+                refreshActiveZoom();
+            }
+        });
     }
 
     function buildGroups(images) {

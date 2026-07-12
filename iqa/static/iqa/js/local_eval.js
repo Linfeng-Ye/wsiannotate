@@ -528,11 +528,11 @@
             setChoice(w.dataset.imageChoice);
         });
         w.addEventListener('keydown', function (e) {
-            if (e.key === 'Enter' || e.key === ' ') {
+            // Space selects this image (ARIA button convention). Enter is
+            // reserved for submitting the current choice, so let it bubble to
+            // the document handler instead of selecting here.
+            if (e.key === ' ' || e.key === 'Spacebar') {
                 e.preventDefault();
-                // Don't let Enter bubble to the document handler, or the same
-                // keystroke would select *and* submit in one go.
-                e.stopPropagation();
                 setChoice(w.dataset.imageChoice);
             }
         });
