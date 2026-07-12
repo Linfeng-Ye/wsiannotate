@@ -94,6 +94,20 @@
     color: var(--muted-2);
 }
 
+/* Shown when the current pair's images fail to load (offline / CDN down),
+   so an annotator can't "answer" a blank pair. */
+.local-image-warning {
+    margin: 10px auto;
+    max-width: 560px;
+    padding: 10px 14px;
+    border: 1px solid var(--warning-line);
+    border-radius: 7px;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    font-size: 14px;
+    text-align: center;
+}
+
 /* Header: current position (line 1) + answered count (line 2). */
 .eval-progress-sub {
     display: block;

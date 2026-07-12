@@ -42,6 +42,7 @@
     var statusEl = root.querySelector('[data-status]');
     var toolbarEl = root.querySelector('[data-toolbar]');
     var doneEl = root.querySelector('[data-done]');
+    var imageWarnEl = root.querySelector('[data-image-warning]');
     var positionEl = root.querySelector('[data-position]');
     var answeredEl = root.querySelector('[data-answered]');
     var submitBtn = root.querySelector('[data-submit]');
@@ -60,6 +61,7 @@
     var chosen = null;           // 'A' | 'B' | null for the current trial
     var finished = false;
     var resyncInFlight = false;
+    var imagesOk = true;         // false when the current pair failed to load
 
     // --- localStorage ------------------------------------------------------
     function loadLocal() {
@@ -103,12 +105,11 @@
         if (answeredEl) answeredEl.textContent = String(doneCount());
     }
 
-    // The working position: the first unanswered pair (or the last pair once
-    // everything is answered). You can review backward from here but not skip
-    // ahead past it.
-    function frontierIndex() {
-        var f = firstUnanswered();
-        return f === -1 ? (trials.length - 1) : f;
+    // Next is only allowed from an already-answered pair (never skip an
+    // unanswered one) and never past the last pair.
+    function canGoNext() {
+        return current >= 0 && current < trials.length - 1
+            && isDone(trials[current].id);
     }
 
     // --- Background sync ---------------------------------------------------
@@ -254,11 +255,17 @@
     }
 
     // --- Choice UI ---------------------------------------------------------
+    // Submit needs a choice AND both target images actually loaded, so a
+    // blank/failed pair can never be "answered" during a network outage.
+    function syncSubmitState() {
+        submitBtn.disabled =
+            !((chosen === 'A' || chosen === 'B') && imagesOk);
+    }
     function clearChoice() {
         chosen = null;
         pairBtns.forEach(function (b) { b.classList.remove('active'); });
         choiceWrappers.forEach(function (w) { w.classList.remove('selected'); });
-        submitBtn.disabled = true;
+        syncSubmitState();
     }
     function setChoice(c) {
         if (c !== 'A' && c !== 'B') { clearChoice(); return; }
@@ -269,7 +276,18 @@
         choiceWrappers.forEach(function (w) {
             w.classList.toggle('selected', w.dataset.imageChoice === c);
         });
-        submitBtn.disabled = false;
+        syncSubmitState();
+    }
+
+    // A pair is viewable only if both target images have pixels. Still-loading
+    // images are treated as fine (optimistic); an error flips it to broken.
+    function evaluateImages() {
+        var a = imgEls.a, b = imgEls.b;
+        var broken = (a.complete && a.naturalWidth === 0)
+            || (b.complete && b.naturalWidth === 0);
+        imagesOk = !broken;
+        if (imageWarnEl) imageWarnEl.style.display = broken ? '' : 'none';
+        syncSubmitState();
     }
 
     // --- Rendering ---------------------------------------------------------
@@ -290,12 +308,14 @@
         if (i < 0 || i >= trials.length) return;
         current = i;
         var t = trials[i];
+        imagesOk = true;               // optimistic until an image errors
         imgEls.a.src = t.img_a;
         imgEls.b.src = t.img_b;
         if (imgEls.ref) imgEls.ref.src = t.ref || '';
         setChoice(choiceFor(t.id));    // restore prior answer or clear
+        evaluateImages();              // catch already-cached failures
         prevBtn.disabled = (i <= 0);
-        nextBtn.disabled = (i >= frontierIndex());
+        nextBtn.disabled = !canGoNext();
         updateProgress();
         preload(i + 1);
     }
@@ -497,9 +517,16 @@
         if (current > 0) renderTrial(current - 1);
     });
     nextBtn.addEventListener('click', function () {
-        if (current < frontierIndex()) renderTrial(current + 1);
+        if (canGoNext()) renderTrial(current + 1);
     });
     quitBtn.addEventListener('click', goHome);
+
+    // Re-evaluate viewability whenever a target image loads or fails.
+    [imgEls.a, imgEls.b].forEach(function (im) {
+        if (!im) return;
+        im.addEventListener('load', evaluateImages);
+        im.addEventListener('error', evaluateImages);
+    });
 
     document.addEventListener('keydown', function (e) {
         if (finished) return;

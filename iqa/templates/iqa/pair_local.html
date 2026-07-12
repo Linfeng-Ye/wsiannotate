@@ -4,7 +4,7 @@
 
 {% block extra_head %}
 <link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-warm">
-<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local7">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260711-local8">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
@@ -101,6 +101,11 @@
 
 <div class="local-done" data-done style="display:none;"></div>
 
+<div class="local-image-warning" data-image-warning style="display:none;">
+    Images couldn&rsquo;t load &mdash; check your connection.
+    Your saved answers are safe.
+</div>
+
 <div class="pair-choices pair-choices-centered" data-choices style="display:none;">
     <button type="button" class="btn pair-btn pair-btn-a" data-choice="A">Image A</button>
     <button type="button" class="btn pair-btn pair-btn-b" data-choice="B">Image B</button>
@@ -120,5 +125,5 @@
 {% if study.zoom_enabled %}
 <script src="{% static 'iqa/js/zoom.js' %}?v=20260711-touch"></script>
 {% endif %}
-<script src="{% static 'iqa/js/local_eval.js' %}?v=20260711-local7"></script>
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260711-local8"></script>
 {% endblock %}
