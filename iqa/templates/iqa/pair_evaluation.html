@@ -3,7 +3,7 @@
 {% block title %}2AFC Evaluation{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260711-fit">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260712-nodl">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
@@ -322,6 +322,7 @@
 {% endblock %}
 
 {% block extra_js %}
+<script src="{% static 'iqa/js/protect.js' %}?v=20260712-nodl"></script>
 {% if not ref_mismatch_error %}
 {% if study.zoom_enabled %}
 <script src="{% static 'iqa/js/zoom.js' %}?v=20260712-zoomstay"></script>

@@ -231,6 +231,13 @@ body {
 .eval-image {
     display: block;
     border-radius: 2px;
+    /* Casual download deterrence: no drag-to-save, no iOS long-press "Save
+       Image" menu, no selecting the image. Pointer events stay enabled so the
+       zoom loupe and tap-to-select keep working. */
+    -webkit-user-drag: none;
+    -webkit-touch-callout: none;
+    -webkit-user-select: none;
+    user-select: none;
 }
 
 /* When the loupe is active, let a finger drag drive it instead of
