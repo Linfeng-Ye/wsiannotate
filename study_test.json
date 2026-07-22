@@ -1,5 +1,5 @@
 {
-  "name": "WSI Distortion Test (50 pairs)",
+  "name": "WSI Distortion Test",
   "mode": "2AFC",
   "prompt": "Which image looks closer to the reference in quality?",
   "sampler": "random",

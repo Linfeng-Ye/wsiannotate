@@ -84,14 +84,48 @@ database stores their relative `images/train_2000/...` paths.
 ```bash
 export DATABASE_URL='postgresql://postgres.daqmygimezishrpcrxvg:<url-encoded-pw>@aws-0-ap-northeast-1.pooler.supabase.com:5432/postgres'
 python manage.py migrate
-python manage.py import_study <study.json>           # add a study
-python scripts/bulk_load_supabase.py <fixture.json>  # fast bulk load a dump
+python manage.py import_study <study.json>                 # add a study
+python manage.py import_assignments <assignments.json>     # per-rater pair assignments
+python scripts/bulk_load_supabase.py <fixture.json>        # fast bulk load a dump
 ```
+
+`import_study` is one round-trip per row over the Tokyo pooler, so a large
+study is slow and, since it is not transactional, an interruption leaves a
+partial study — run it in the background (not a short-timeout foreground
+call) and re-run cleanly if cut off.
 
 Manage studies and create annotator accounts via the Django admin
 (`/admin/`, using the privately shared staff account) or the
 bulk-create-users page. Staff users also get a **Progress & exports** dashboard
 on the home page for per-annotator completion counts and CSV downloads.
+
+### Per-rater assignments (2AFC)
+
+By default every rater sees the whole study. To split a large study across a
+limited pool of raters (with intentional overlap), import an assignment JSON.
+Once a study has **any** assignment it becomes gated: each rater sees only
+their assigned pairs, and a rater with no assignment sees nothing (so an
+active, assigned study disappears for everyone not on it).
+
+```json
+{
+  "study_id": 5,
+  "assignments": [
+    {"username": "rater1", "pairs": ["000001_x14152_y152922_0000", "..."]},
+    {"username": "rater2", "pairs": ["..."]}
+  ]
+}
+```
+
+- `study_id` or `study_name` selects the study (2AFC only).
+- Each `pairs` entry names a pair by its **stem** — the shared prefix of the
+  `_a` / `_b` / `_ref` filenames (e.g. `000001_x14152_y152922_0000` for
+  `images/Test/000001_x14152_y152922_0000_a.png`). The full `image_a` path and
+  the bare `_a` filename are also accepted.
+- Usernames must already exist (create them first); an unknown user or pair key
+  aborts the whole import. Re-importing **replaces** each listed rater's set
+  (idempotent); raters absent from the JSON are left untouched.
+- Assignments are also editable in the Django admin (Study assignments).
 
 ## Local development
 
