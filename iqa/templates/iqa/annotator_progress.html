@@ -47,9 +47,18 @@
                         {{ cell.done }}/{{ cell.total }}
                     </span>
                 </div>
-                <span style="font-size:11px;color:#888;">
-                    {% if cell.completed %}completed{% elif cell.started %}in progress{% else %}not started{% endif %}
-                </span>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+                    <span style="font-size:11px;color:#888;">
+                        {% if cell.completed %}completed{% elif cell.started %}in progress{% else %}not started{% endif %}
+                    </span>
+                    {% if cell.started %}
+                    <a href="{% url 'iqa:export_study_user_csv' cell.study.id row.user.id %}"
+                       title="Download {{ row.user.username }} · {{ cell.study.name }}"
+                       style="font-size:11px;color:#28a745;text-decoration:none;white-space:nowrap;">
+                        ⬇ CSV
+                    </a>
+                    {% endif %}
+                </div>
                 {% endif %}
             </td>
             {% endfor %}
@@ -59,8 +68,9 @@
             <td>
                 {% if row.overall_done %}
                 <a href="{% url 'iqa:export_user_csv' row.user.id %}"
-                   class="btn" style="background:#28a745;color:#fff;padding:5px 12px;font-size:13px;">
-                    CSV
+                   class="btn" style="background:#28a745;color:#fff;padding:5px 12px;font-size:13px;"
+                   title="All studies for {{ row.user.username }}">
+                    All CSV
                 </a>
                 {% else %}
                 <span style="color:#bbb;font-size:12px;">no data</span>

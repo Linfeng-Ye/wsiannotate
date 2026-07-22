@@ -979,10 +979,16 @@ def user_creation_results(request):
 @staff_member_required
 def view_responses(request):
     study_id = request.GET.get('study_id')
+    user_id = request.GET.get('user_id')
     studies = Study.objects.all()
+    users = User.objects.filter(is_active=True).order_by('username')
     mos_data = []
     pair_data = []
     study = None
+    selected_user = None
+
+    if user_id:
+        selected_user = get_object_or_404(User, id=user_id)
 
     if study_id:
         study = get_object_or_404(Study, id=study_id)
@@ -993,6 +999,8 @@ def view_responses(request):
                 'stimulus__image', 'stimulus__reference',
                 'user',
             ).order_by('stimulus__order', 'user__username')
+            if selected_user is not None:
+                mos_data = mos_data.filter(user=selected_user)
         else:
             pair_data = PairResponse.objects.filter(
                 stimulus__study=study,
@@ -1003,11 +1011,15 @@ def view_responses(request):
                 'stimulus__reference_b',
                 'user',
             ).order_by('stimulus__order', 'user__username')
+            if selected_user is not None:
+                pair_data = pair_data.filter(user=selected_user)
 
     return render(
         request, 'iqa/view_responses.html', {
             'studies': studies,
+            'users': users,
             'study': study,
+            'selected_user': selected_user,
             'mos_data': mos_data,
             'pair_data': pair_data,
         },
@@ -1087,27 +1099,25 @@ def export_own_responses_csv(request, study_id: int):
     return response
 
 
-@staff_member_required
-def export_responses_csv(request, study_id):
-    study = get_object_or_404(Study, id=study_id)
-    response = HttpResponse(content_type='text/csv')
-    fname = _download_filename(study.name)
-    response['Content-Disposition'] = (
-        f'attachment; filename="{fname}_responses.csv"'
-    )
-    writer = _SafeCsvWriter(response)
+def _write_study_responses(writer, study, user=None):
+    """Write a study's responses to ``writer``, optionally for one user.
 
+    Same column layout whether or not ``user`` is set, so a per-annotator
+    export is a strict row-subset of the whole-study export.
+    """
     if study.mode == Study.MODE_MOS:
         writer.writerow([
             'user', 'stimulus_order',
             'image', 'reference', 'score',
         ])
-        for r in MOSResponse.objects.filter(
+        rows = MOSResponse.objects.filter(
             stimulus__study=study,
         ).select_related(
-            'stimulus__image', 'stimulus__reference',
-            'user',
-        ).order_by('stimulus__order', 'user__username'):
+            'stimulus__image', 'stimulus__reference', 'user',
+        ).order_by('stimulus__order', 'user__username')
+        if user is not None:
+            rows = rows.filter(user=user)
+        for r in rows:
             ref = ''
             if r.stimulus.reference:
                 ref = str(r.stimulus.reference.fname)
@@ -1127,14 +1137,16 @@ def export_responses_csv(request, study_id):
             'shown_image_a', 'shown_image_b',
             'shown_reference_a', 'shown_reference_b',
         ])
-        for r in PairResponse.objects.filter(
+        rows = PairResponse.objects.filter(
             stimulus__study=study,
         ).select_related(
             'stimulus__image_a', 'stimulus__image_b',
-            'stimulus__reference_a',
-            'stimulus__reference_b',
+            'stimulus__reference_a', 'stimulus__reference_b',
             'user',
-        ).order_by('stimulus__order', 'user__username'):
+        ).order_by('stimulus__order', 'user__username')
+        if user is not None:
+            rows = rows.filter(user=user)
+        for r in rows:
             ref_a = ''
             if r.stimulus.reference_a:
                 ref_a = str(r.stimulus.reference_a.fname)
@@ -1155,6 +1167,33 @@ def export_responses_csv(request, study_id):
                 r.shown_reference_b,
             ])
 
+
+@staff_member_required
+def export_responses_csv(request, study_id):
+    study = get_object_or_404(Study, id=study_id)
+    response = HttpResponse(content_type='text/csv')
+    fname = _download_filename(study.name)
+    response['Content-Disposition'] = (
+        f'attachment; filename="{fname}_responses.csv"'
+    )
+    _write_study_responses(_SafeCsvWriter(response), study)
+    return response
+
+
+@staff_member_required
+def export_study_user_csv(request, study_id, user_id):
+    """One annotator's responses for one study, downloaded on its own."""
+    study = get_object_or_404(Study, id=study_id)
+    user = get_object_or_404(User, id=user_id)
+    response = HttpResponse(content_type='text/csv')
+    fname = (
+        f'{_download_filename(study.name)}'
+        f'_{_download_filename(user.username)}'
+    )
+    response['Content-Disposition'] = (
+        f'attachment; filename="{fname}_responses.csv"'
+    )
+    _write_study_responses(_SafeCsvWriter(response), study, user=user)
     return response
 
 

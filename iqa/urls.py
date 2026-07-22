@@ -118,6 +118,11 @@ urlpatterns = [
         name='export_csv',
     ),
     path(
+        'responses/export/<int:study_id>/user/<int:user_id>/',
+        views.export_study_user_csv,
+        name='export_study_user_csv',
+    ),
+    path(
         'responses/export-own/<int:study_id>/',
         views.export_own_responses_csv,
         name='export_own_csv',

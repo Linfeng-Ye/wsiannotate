@@ -346,6 +346,44 @@ class StaffDashboardTests(TestCase):
         self.client.logout()
         self.assertEqual(self.client.get(url).status_code, 302)
 
+    def test_study_user_export_is_scoped(self):
+        # a second annotator with a response in the same study
+        other = User.objects.create_user('worker2', password='x')
+        PairResponse.objects.create(
+            stimulus=self.stim, user=other, choice='B',
+        )
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse(
+            'iqa:export_study_user_csv', args=[self.study.id, self.ann.id],
+        ))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode().splitlines()
+        self.assertEqual(len(body), 2)          # header + only worker's row
+        self.assertIn('worker', body[1])
+        self.assertNotIn('worker2', r.content.decode())
+        self.assertIn('S_worker_responses.csv', r['Content-Disposition'])
+
+    def test_study_user_export_requires_staff(self):
+        url = reverse(
+            'iqa:export_study_user_csv', args=[self.study.id, self.ann.id],
+        )
+        self.client.force_login(self.ann)
+        self.assertIn(self.client.get(url).status_code, (302, 403))
+
+    def test_view_responses_filters_by_user(self):
+        other = User.objects.create_user('worker2', password='x')
+        PairResponse.objects.create(
+            stimulus=self.stim, user=other, choice='B',
+        )
+        self.client.force_login(self.staff)
+        r = self.client.get(
+            reverse('iqa:view_responses'),
+            {'study_id': self.study.id, 'user_id': self.ann.id},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.context['pair_data']), 1)
+        self.assertEqual(r.context['selected_user'], self.ann)
+
     def test_progress_and_export_include_mos_responses(self):
         mos_study = Study.objects.create(
             name='MOS study', mode=Study.MODE_MOS, is_active=True,
