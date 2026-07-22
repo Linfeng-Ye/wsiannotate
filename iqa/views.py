@@ -26,7 +26,7 @@ from django.views.decorators.http import require_GET, require_POST
 from .forms import BulkUserCreationForm
 from .models import (
     Study, MOSStimulus, PairStimulus,
-    MOSResponse, PairResponse,
+    MOSResponse, PairResponse, StudyAssignment,
 )
 from .samplers import (
     get_next_stimulus, get_progress, get_upcoming_stimuli,
@@ -1176,6 +1176,25 @@ def annotator_progress(request):
             key = (row['user_id'], row['stimulus__study_id'])
             done[key] = (row['n'], row['last'])
 
+    # Per-rater assignments: an assigned rater's denominator is their own
+    # pair count, and their "done" only counts answers within that set.
+    # Unassigned users keep the full-study total (backward-compatible).
+    assigned = {}  # (user_id, study_id) -> set(pair_ids)
+    for sa in StudyAssignment.objects.prefetch_related('pair_stimuli'):
+        assigned[(sa.user_id, sa.study_id)] = set(
+            sa.pair_stimuli.values_list('id', flat=True)
+        )
+    assigned_done = {}  # (user_id, study_id) -> answers within assignment
+    gated_study_ids = {sid for (_uid, sid) in assigned}
+    if gated_study_ids:
+        for uid, stim_id, sid in PairResponse.objects.filter(
+            stimulus__study_id__in=gated_study_ids,
+        ).values_list('user_id', 'stimulus_id', 'stimulus__study_id'):
+            pairs = assigned.get((uid, sid))
+            if pairs is not None and stim_id in pairs:
+                akey = (uid, sid)
+                assigned_done[akey] = assigned_done.get(akey, 0) + 1
+
     rows = []
     for user in users:
         cells = []
@@ -1184,6 +1203,10 @@ def annotator_progress(request):
         for study in studies:
             n, last = done.get((user.id, study.id), (0, None))
             total = totals[study.id]
+            akey = (user.id, study.id)
+            if akey in assigned:
+                total = len(assigned[akey])
+                n = assigned_done.get(akey, 0)
             overall_done += n
             if last and (last_activity is None or last > last_activity):
                 last_activity = last

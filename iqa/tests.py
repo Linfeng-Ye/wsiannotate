@@ -742,6 +742,38 @@ class AssignmentTests(TestCase):
         call_command('import_assignments', path)
         self.assertEqual(len(self.assigned_pair_ids(self.study, self.r1)), 1)
 
+    def test_progress_dashboard_uses_assigned_total(self):
+        staff = User.objects.create_user(
+            'boss', password='x', is_staff=True, is_superuser=True,
+        )
+        self.client.force_login(staff)
+        self._assign(self.r1, self.stims[:3])   # rater1 -> 3 of 5
+        # rater1 answers 2 of their assigned pairs
+        for st in self.stims[:2]:
+            PairResponse.objects.create(
+                stimulus=st, user=self.r1, choice='A',
+            )
+        r = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertEqual(r.status_code, 200)
+        row = next(
+            row for row in r.context['rows']
+            if row['user'].username == 'rater1'
+        )
+        cell = next(
+            c for c in row['cells'] if c['study'].id == self.study.id
+        )
+        self.assertEqual(cell['total'], 3)   # not 5
+        self.assertEqual(cell['done'], 2)
+        # r2 (unassigned, gated study) keeps the full-study denominator
+        row2 = next(
+            row for row in r.context['rows']
+            if row['user'].username == 'rater2'
+        )
+        cell2 = next(
+            c for c in row2['cells'] if c['study'].id == self.study.id
+        )
+        self.assertEqual(cell2['total'], 5)
+
     def test_import_unknown_pair_key_aborts(self):
         import json
         import tempfile
