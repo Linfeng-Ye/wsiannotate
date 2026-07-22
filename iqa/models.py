@@ -194,6 +194,42 @@ class PairStimulus(models.Model):
         )
 
 
+class StudyAssignment(models.Model):
+    """Which pairs a specific rater is assigned within a study.
+
+    When a study has *no* assignments, every rater sees the whole study
+    (backward-compatible). As soon as a study has *any* assignment, it
+    becomes assignment-gated: each rater sees only their assigned pairs,
+    and a rater with no assignment sees nothing. Assignments may overlap
+    across raters by design.
+
+    Only 2AFC (pair) studies are supported.
+    """
+
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name='assignments',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='study_assignments',
+    )
+    pair_stimuli = models.ManyToManyField(
+        PairStimulus,
+        related_name='assignments',
+        blank=True,
+    )
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['study', 'user']
+
+    def __str__(self) -> str:
+        return f'{self.user} @ {self.study}'
+
+
 class MOSResponse(models.Model):
     stimulus = models.ForeignKey(
         MOSStimulus, on_delete=models.PROTECT,

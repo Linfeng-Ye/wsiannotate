@@ -8,6 +8,7 @@ from .models import (
     Image, Study,
     MOSStimulus, PairStimulus,
     MOSResponse, PairResponse,
+    StudyAssignment,
 )
 
 
@@ -86,6 +87,18 @@ class PairResponseAdmin(admin.ModelAdmin):
         'timestamp',
     )
     list_filter = ('stimulus__study', 'user')
+
+
+@admin.register(StudyAssignment)
+class StudyAssignmentAdmin(admin.ModelAdmin):
+    list_display = ('id', 'study', 'user', 'pair_count', 'created')
+    list_filter = ('study', 'user')
+    raw_id_fields = ('user',)
+    filter_horizontal = ('pair_stimuli',)
+
+    @admin.display(description='Pairs')
+    def pair_count(self, obj: StudyAssignment) -> int:
+        return obj.pair_stimuli.count()
 
 
 class CustomUserAdmin(UserAdmin):

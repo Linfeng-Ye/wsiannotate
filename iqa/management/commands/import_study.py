@@ -239,6 +239,9 @@ class Command(BaseCommand):
             pair_shared_ref_layout=data.get(
                 'pair_shared_ref_layout', False,
             ),
+            use_local_mode=data.get(
+                'use_local_mode', False,
+            ),
             is_active=options['activate'],
         )
 

@@ -644,6 +644,129 @@ class LocalModeTests(TestCase):
         self.assertContains(r, 'data-local-eval')
 
 
+class AssignmentTests(TestCase):
+    """Per-rater pair assignment gating + the import command."""
+
+    def setUp(self):
+        from .models import StudyAssignment
+        from .samplers import (
+            assigned_pair_ids, ordered_stimulus_ids, get_progress,
+        )
+        self.StudyAssignment = StudyAssignment
+        self.assigned_pair_ids = assigned_pair_ids
+        self.ordered_stimulus_ids = ordered_stimulus_ids
+        self.get_progress = get_progress
+
+        self.r1 = User.objects.create_user('rater1', password='x')
+        self.r2 = User.objects.create_user('rater2', password='x')
+        self.study = Study.objects.create(
+            name='A', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_RANDOM,
+        )
+        self.stims = []
+        for i in range(5):
+            a = Image.objects.create(fname=f'images/Test/p{i}_a.png')
+            b = Image.objects.create(fname=f'images/Test/p{i}_b.png')
+            ref = Image.objects.create(fname=f'images/Test/p{i}_ref.png')
+            self.stims.append(PairStimulus.objects.create(
+                study=self.study, image_a=a, image_b=b,
+                reference_a=ref, reference_b=ref, order=i,
+            ))
+
+    def _assign(self, user, stims):
+        sa = self.StudyAssignment.objects.create(
+            study=self.study, user=user,
+        )
+        sa.pair_stimuli.set(stims)
+        return sa
+
+    def test_no_assignments_means_everyone_sees_all(self):
+        self.assertIsNone(self.assigned_pair_ids(self.study, self.r1))
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 5,
+        )
+
+    def test_assigned_rater_is_restricted(self):
+        self._assign(self.r1, self.stims[:3])
+        ids = self.assigned_pair_ids(self.study, self.r1)
+        self.assertEqual(len(ids), 3)
+        self.assertEqual(len(self.ordered_stimulus_ids(self.study, self.r1)), 3)
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 3,
+        )
+        nxt = get_next_stimulus(self.study, self.r1)
+        self.assertIn(nxt.id, ids)
+
+    def test_unassigned_rater_on_gated_study_sees_nothing(self):
+        self._assign(self.r1, self.stims[:3])
+        # r2 has no assignment, but the study is now gated
+        self.assertEqual(self.assigned_pair_ids(self.study, self.r2), set())
+        self.assertEqual(
+            self.get_progress(self.study, self.r2)['total'], 0,
+        )
+        self.assertIsNone(get_next_stimulus(self.study, self.r2))
+
+    def test_overlap_between_raters(self):
+        self._assign(self.r1, self.stims[:3])   # 0,1,2
+        self._assign(self.r2, self.stims[2:])   # 2,3,4
+        a = self.assigned_pair_ids(self.study, self.r1)
+        b = self.assigned_pair_ids(self.study, self.r2)
+        self.assertEqual(len(a & b), 1)
+        self.assertEqual(len(a | b), 5)
+
+    def test_import_command_by_stem_idempotent(self):
+        import json
+        import tempfile
+        from django.core.management import call_command
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'rater1', 'pairs': ['p0', 'p1', 'p2']},
+                {'username': 'rater2',
+                 'pairs': ['images/Test/p3_a.png', 'p4_a.png']},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        call_command('import_assignments', path)
+        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r1)), 3)
+        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r2)), 2)
+        # re-import with a smaller set -> replaced, not appended
+        doc['assignments'][0]['pairs'] = ['p0']
+        with open(path, 'w') as f:
+            json.dump(doc, f)
+        call_command('import_assignments', path)
+        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r1)), 1)
+
+    def test_import_unknown_pair_key_aborts(self):
+        import json
+        import tempfile
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'rater1', 'pairs': ['p0', 'nonesuch']},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        with self.assertRaises(CommandError):
+            call_command('import_assignments', path)
+        # nothing written
+        self.assertFalse(
+            self.StudyAssignment.objects.filter(study=self.study).exists()
+        )
+
+
 class HealthCheckMiddlewareTests(SimpleTestCase):
     @override_settings(ALLOWED_HOSTS=[])
     def test_health_check_bypasses_host_validation(self):

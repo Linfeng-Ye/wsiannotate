@@ -7,7 +7,7 @@ from django.db.models import Count, Q
 
 from .models import (
     Study, MOSStimulus, PairStimulus,
-    MOSResponse, PairResponse,
+    MOSResponse, PairResponse, StudyAssignment,
 )
 
 Stimulus = Union[MOSStimulus, PairStimulus]
@@ -17,6 +17,28 @@ def _seed(study: Study, user: User) -> int:
     raw = f'{study.id}:{user.id}:{user.username}'
     digest = hashlib.sha256(raw.encode('utf-8')).hexdigest()
     return int(digest[:16], 16)
+
+
+def assigned_pair_ids(study: Study, user: User) -> Optional[set]:
+    """The PairStimulus ids this rater may see, or ``None`` for "everything".
+
+    - ``None``  → the study is not assignment-gated; the rater sees every
+      pair (backward-compatible; also the case for MOS studies).
+    - ``set``   → the study has assignments, so the rater is restricted to
+      exactly this set (possibly empty, meaning "assigned nothing").
+    """
+    if study.mode != Study.MODE_2AFC:
+        return None
+    assignment = StudyAssignment.objects.filter(
+        study=study, user=user,
+    ).first()
+    if assignment is not None:
+        return set(
+            assignment.pair_stimuli.values_list('id', flat=True)
+        )
+    if StudyAssignment.objects.filter(study=study).exists():
+        return set()
+    return None
 
 
 def _base_queryset(study: Study):
@@ -58,6 +80,9 @@ def ordered_stimulus_ids(study: Study, user: User) -> List[int]:
       since counts change as other users respond.
     """
     queryset = _base_queryset(study).select_related(None)
+    assigned = assigned_pair_ids(study, user)
+    if assigned is not None:
+        queryset = queryset.filter(id__in=assigned)
     if study.sampler == Study.SAMPLER_RANDOM:
         ids = list(queryset.values_list('id', flat=True))
         random.Random(_seed(study, user)).shuffle(ids)
@@ -93,6 +118,9 @@ def get_next_stimulus(
 ) -> Optional[Stimulus]:
     answered = _answered_ids(study, user)
     remaining = _base_queryset(study).exclude(id__in=answered)
+    assigned = assigned_pair_ids(study, user)
+    if assigned is not None:
+        remaining = remaining.filter(id__in=assigned)
     if study.sampler == Study.SAMPLER_SEQUENTIAL:
         return remaining.order_by('order', 'id').first()
     if study.sampler == Study.SAMPLER_LEAST_EVAL:
@@ -116,9 +144,12 @@ def get_upcoming_stimuli(
     otherwise it starts from the first unanswered stimulus.
     """
     answered = _answered_ids(study, user)
+    assigned = assigned_pair_ids(study, user)
 
     if study.sampler == Study.SAMPLER_SEQUENTIAL:
         remaining = _base_queryset(study).exclude(id__in=answered)
+        if assigned is not None:
+            remaining = remaining.filter(id__in=assigned)
         current = _base_queryset(study).select_related(None).filter(
             id=current_stimulus_id,
         ).only('id', 'order').first()
@@ -156,8 +187,14 @@ def get_progress(
             user=user, stimulus__study=study,
         ).count()
     else:
-        total = study.pair_stimuli.count()
-        done = PairResponse.objects.filter(
+        assigned = assigned_pair_ids(study, user)
+        done_qs = PairResponse.objects.filter(
             user=user, stimulus__study=study,
-        ).count()
+        )
+        if assigned is not None:
+            total = len(assigned)
+            done = done_qs.filter(stimulus_id__in=assigned).count()
+        else:
+            total = study.pair_stimuli.count()
+            done = done_qs.count()
     return {'done': done, 'total': total}
