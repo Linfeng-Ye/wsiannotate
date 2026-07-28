@@ -1,5 +1,5 @@
 /*
- * Local-first 2AFC evaluation.
+ * Local-first evaluation, shared by 2AFC and QC studies.
  *
  * The browser downloads the whole study once (manifest), drives the trial
  * sequence itself, and records each answer to localStorage so a click is
@@ -10,6 +10,10 @@
  *   - a re-send on reload, and a sendBeacon flush on page close.
  * The server is the source of truth (idempotent upsert on (stimulus, user)),
  * so a lost background request simply re-appears as an unanswered trial.
+ *
+ * Only the trial *shape* differs between modes — how many images a trial has
+ * and which answers are legal. That lives in MODES below; the sequencing,
+ * storage and sync engine underneath is mode-agnostic.
  */
 (function () {
     'use strict';
@@ -18,6 +22,7 @@
     if (!root) return;
 
     var cfg = {
+        mode: root.dataset.mode || '2AFC',
         studyId: root.dataset.studyId,
         userId: root.dataset.userId || '0',
         csrf: root.dataset.csrf,
@@ -27,6 +32,30 @@
         homeUrl: root.dataset.homeUrl,
     };
 
+    var MODES = {
+        // slots: DOM data-img value -> manifest trial field.
+        // required: slots that must have pixels before an answer counts.
+        // choices: the legal answers, also the order shown.
+        // keys: keyboard key (uppercased) -> answer.
+        '2AFC': {
+            slots: {a: 'img_a', b: 'img_b', ref: 'ref'},
+            required: ['a', 'b'],
+            choices: ['A', 'B'],
+            keys: {A: 'A', B: 'B', D: 'B', '1': 'A', '2': 'B'},
+            noun: 'pair',
+        },
+        QC: {
+            slots: {img: 'img', ref: 'ref'},
+            required: ['img'],
+            choices: ['N', 'Y'],
+            // Same left-hand cluster as 2AFC: A is the left button (No),
+            // D the right one (Yes).
+            keys: {A: 'N', D: 'Y', N: 'N', Y: 'Y', '1': 'N', '2': 'Y'},
+            noun: 'image',
+        },
+    };
+    var spec = MODES[cfg.mode] || MODES['2AFC'];
+
     var PRELOAD_AHEAD = 6;       // trials to warm images for
     var RETRY_INTERVAL_MS = 15000;
     // Scope storage per (study, user) so two annotators sharing a browser never
@@ -34,11 +63,11 @@
     var STORAGE_KEY = 'iqa_local_' + cfg.studyId + '_' + cfg.userId;
 
     // --- DOM ---------------------------------------------------------------
-    var imgEls = {
-        a: root.querySelector('[data-img="a"]'),
-        b: root.querySelector('[data-img="b"]'),
-        ref: root.querySelector('[data-img="ref"]'),
-    };
+    var imgEls = {};             // slot -> <img>, for the slots this mode uses
+    Object.keys(spec.slots).forEach(function (slot) {
+        imgEls[slot] = root.querySelector('[data-img="' + slot + '"]');
+    });
+    var verdictEl = root.querySelector('[data-verdict-target]');
     var layoutEl = root.querySelector('[data-images]');
     var choicesEl = root.querySelector('[data-choices]');
     var controlsEl = root.querySelector('[data-controls]');
@@ -269,20 +298,22 @@
     }
 
     // --- Choice UI ---------------------------------------------------------
-    // Submit needs a choice AND both target images actually loaded, so a
-    // blank/failed pair can never be "answered" during a network outage.
+    function isChoice(c) { return spec.choices.indexOf(c) !== -1; }
+
+    // Submit needs a choice AND the trial's target images actually loaded, so
+    // a blank/failed trial can never be "answered" during a network outage.
     function syncSubmitState() {
-        submitBtn.disabled =
-            !((chosen === 'A' || chosen === 'B') && imagesOk);
+        submitBtn.disabled = !(isChoice(chosen) && imagesOk);
     }
     function clearChoice() {
         chosen = null;
         pairBtns.forEach(function (b) { b.classList.remove('active'); });
         choiceWrappers.forEach(function (w) { w.classList.remove('selected'); });
+        if (verdictEl) verdictEl.className = 'image-wrapper qc-verdict-wrapper';
         syncSubmitState();
     }
     function setChoice(c) {
-        if (c !== 'A' && c !== 'B') { clearChoice(); return; }
+        if (!isChoice(c)) { clearChoice(); return; }
         chosen = c;
         pairBtns.forEach(function (b) {
             b.classList.toggle('active', b.dataset.choice === c);
@@ -290,27 +321,43 @@
         choiceWrappers.forEach(function (w) {
             w.classList.toggle('selected', w.dataset.imageChoice === c);
         });
+        // QC: colour the image itself, so the verdict is obvious without
+        // having to look down at the button bar.
+        if (verdictEl) {
+            verdictEl.className = 'image-wrapper qc-verdict-wrapper is-'
+                + (c === 'Y' ? 'yes' : 'no');
+        }
         syncSubmitState();
     }
 
-    // A pair is viewable only if both target images have pixels. Still-loading
-    // images are treated as fine (optimistic); an error flips it to broken.
+    // A trial is viewable only if its target images have pixels.
+    // Still-loading images are treated as fine (optimistic); an error flips it
+    // to broken.
+    function requiredImages() {
+        return spec.required.map(function (slot) { return imgEls[slot]; })
+            .filter(Boolean);
+    }
     function evaluateImages() {
-        var a = imgEls.a, b = imgEls.b;
-        var broken = (a.complete && a.naturalWidth === 0)
-            || (b.complete && b.naturalWidth === 0);
+        var broken = requiredImages().some(function (im) {
+            return im.complete && im.naturalWidth === 0;
+        });
         imagesOk = !broken;
         if (imageWarnEl) imageWarnEl.style.display = broken ? '' : 'none';
         syncSubmitState();
     }
 
     // --- Rendering ---------------------------------------------------------
+    // The image URLs a trial carries, in this mode's slot order.
+    function trialUrls(t) {
+        return Object.keys(spec.slots).map(function (slot) {
+            return t[spec.slots[slot]];
+        }).filter(Boolean);
+    }
+
     function preload(fromIndex) {
         for (var i = fromIndex;
              i < Math.min(fromIndex + PRELOAD_AHEAD, trials.length); i++) {
-            var t = trials[i];
-            [t.img_a, t.img_b, t.ref].forEach(function (u) {
-                if (!u) return;
+            trialUrls(trials[i]).forEach(function (u) {
                 var im = new Image();
                 im.fetchPriority = 'low';
                 im.src = u;
@@ -323,9 +370,10 @@
         current = i;
         var t = trials[i];
         imagesOk = true;               // optimistic until an image errors
-        imgEls.a.src = t.img_a;
-        imgEls.b.src = t.img_b;
-        if (imgEls.ref) imgEls.ref.src = t.ref || '';
+        Object.keys(spec.slots).forEach(function (slot) {
+            var el = imgEls[slot];
+            if (el) el.src = t[spec.slots[slot]] || '';
+        });
         // If the loupe is open (mouse resting on an image), repoint it at the
         // new pair immediately instead of waiting for a mouse move.
         if (window.IQARefreshZoom) window.IQARefreshZoom();
@@ -357,7 +405,7 @@
     function submit() {
         if (finished) return;
         var t = trials[current];
-        if (!t || (chosen !== 'A' && chosen !== 'B')) return;
+        if (!t || !isChoice(chosen)) return;
         var id = sid(t);
         // A revise = re-answering a pair we already know is answered (the
         // annotator navigated back to it). A first-time forward answer is not
@@ -444,7 +492,7 @@
     function renderDone(serverCount, pending, unsent, skipped) {
         skipped = skipped || 0;
         var skipNote = skipped
-            ? '<p class="local-sync-note">' + skipped + ' pair(s) are no ' +
+            ? '<p class="local-sync-note">' + skipped + ' ' + spec.noun + '(s) are no ' +
               'longer part of this study and were skipped.</p>'
             : '';
         if (pending.length === 0 && unsent.length === 0) {
@@ -470,12 +518,12 @@
                 '<button type="button" class="btn" data-go-home>' +
                 'Back to studies</button></div>' +
                 (pending.length ? '<p class="local-sync-note">' +
-                    pending.length + ' pair(s) still need a response.</p>' : '');
+                    pending.length + ' ' + spec.noun + '(s) still need a response.</p>' : '');
         } else {
             // Only truly-unanswered pairs remain (e.g. lost on another device).
             doneEl.className = 'local-done is-warning';
             doneEl.innerHTML =
-                '<h2>' + pending.length + ' pair(s) still need a response</h2>' +
+                '<h2>' + pending.length + ' ' + spec.noun + '(s) still need a response</h2>' +
                 '<p>These weren’t found on the server. You can finish ' +
                 'them now.</p>' +
                 '<div class="local-done-actions">' +
@@ -553,8 +601,7 @@
     quitBtn.addEventListener('click', goHome);
 
     // Re-evaluate viewability whenever a target image loads or fails.
-    [imgEls.a, imgEls.b].forEach(function (im) {
-        if (!im) return;
+    requiredImages().forEach(function (im) {
         im.addEventListener('load', evaluateImages);
         im.addEventListener('error', evaluateImages);
     });
@@ -582,10 +629,11 @@
         if (finished) return;
         var key = e.key.toUpperCase();
         var handled = true;
-        // Gaming-style left-hand cluster: A picks the left image, D the right,
-        // S submits (B / 2 also pick right; Enter also submits).
-        if (key === 'A' || e.key === '1') setChoice('A');
-        else if (key === 'B' || key === 'D' || e.key === '2') setChoice('B');
+        // Gaming-style left-hand cluster: A picks the left answer, D the
+        // right, S submits (Enter also submits). See MODES for the per-mode
+        // key map — S is reserved for submit and never appears in it.
+        var mapped = spec.keys[key];
+        if (isChoice(mapped)) setChoice(mapped);
         else if ((e.key === 'Enter' || key === 'S') && !submitBtn.disabled) {
             e.preventDefault();
             submit();

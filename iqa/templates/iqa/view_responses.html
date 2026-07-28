@@ -41,7 +41,42 @@
 </form>
 
 {% if study %}
-    {% if study.mode == 'MOS' %}
+    {% if study.mode == 'QC' %}
+    <h2>Qualification Responses for &ldquo;{{ study.name }}&rdquo;</h2>
+    {% if qc_data %}
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Order</th>
+                <th>Image</th>
+                <th>Reference</th>
+                <th>Qualified</th>
+                <th>Shown Image</th>
+                <th>Shown Reference</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in qc_data %}
+            <tr>
+                <td>{{ r.user.username }}</td>
+                <td>{{ r.stimulus.order }}</td>
+                <td>{{ r.stimulus.image.fname }}</td>
+                <td>{% if r.stimulus.reference %}{{ r.stimulus.reference.fname }}{% else %}&mdash;{% endif %}</td>
+                <td>{{ r.get_choice_display }}</td>
+                <td>{{ r.shown_image }}</td>
+                <td>{{ r.shown_reference }}</td>
+                <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No responses yet.</p>
+    {% endif %}
+
+    {% elif study.mode == 'MOS' %}
     <h2>MOS Responses for &ldquo;{{ study.name }}&rdquo;</h2>
     {% if mos_data %}
     <table>

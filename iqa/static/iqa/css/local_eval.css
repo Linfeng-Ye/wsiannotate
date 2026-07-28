@@ -108,13 +108,44 @@
     text-align: center;
 }
 
-/* Header: current position (line 1) + answered count (line 2). */
+/* Progress lives in a small corner chip rather than a header row: on a laptop
+   screen every row above the images pushes them below the fold. */
+.eval-progress-chip {
+    position: fixed;
+    top: 6px;
+    right: 10px;
+    z-index: 45;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(17, 22, 26, 0.82);
+    backdrop-filter: blur(8px);
+    color: var(--muted-2);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
 .eval-progress-sub {
-    display: block;
-    margin-top: 2px;
     font-size: 11px;
     font-weight: 600;
-    color: var(--muted-2);
+}
+
+.eval-progress-sub::before {
+    content: "\00b7";
+    margin: 0 4px;
+}
+
+/* Keep the zoom control clear of the chip. */
+[data-local-eval] .image-toolbar {
+    margin: 0 140px 6px 0;
+}
+
+[data-local-eval] .pair-shared-ref-layout {
+    margin-bottom: 6px;
 }
 
 /* Keyboard-shortcut hints. The button bar is fixed to the bottom of the
@@ -125,8 +156,8 @@
     flex-wrap: wrap;
     justify-content: center;
     align-items: center;
-    gap: 6px 18px;
-    font-size: 12px;
+    gap: 4px 14px;
+    font-size: 11px;
     color: var(--muted-2);
 }
 
@@ -134,21 +165,38 @@
     position: fixed;
     left: 50%;
     transform: translateX(-50%);
-    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 74px);
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 60px);
     z-index: 39;
     max-width: min(760px, calc(100vw - 24px));
     margin: 0;
-    padding: 6px 14px;
+    padding: 5px 12px;
     border-radius: 9px;
     background: rgba(17, 22, 26, 0.82);
     backdrop-filter: blur(8px);
     pointer-events: none;   /* purely informational */
 }
 
+/* Wide screens: park the hints in the empty bottom-left corner beside the
+   button bars, where they read as a fixed manual and never cover an image. */
+@media (min-width: 1151px) {
+    .evaluation-pair .kbd-hints {
+        left: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        transform: none;
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-content: start;
+        gap: 3px 14px;
+        max-width: 250px;
+        padding: 7px 10px;
+        background: rgba(17, 22, 26, 0.62);
+    }
+}
+
 .kbd-hint {
     display: inline-flex;
     align-items: center;
-    gap: 6px;
+    gap: 5px;
     white-space: nowrap;
 }
 
@@ -156,19 +204,78 @@
     display: inline-flex;
     align-items: center;
     justify-content: center;
-    min-width: 22px;
-    height: 22px;
-    padding: 0 7px;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
     border: 1px solid var(--line);
     border-bottom-width: 2px;
-    border-radius: 5px;
+    border-radius: 4px;
     background: var(--surface-2);
     color: var(--text);
-    font: 600 12px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
 }
 
 @media (max-width: 760px) {
     .evaluation-pair .kbd-hints { display: none; }
+}
+
+/* With the title, prompt and progress row gone, the images get the rest of
+   the viewport instead of a fixed 46vh slice. The width cap keeps three
+   panels on one row when the pair is short and wide. */
+@media (min-width: 761px) {
+    [data-local-eval].evaluation-pair.sizing-fit_screen .eval-image,
+    [data-local-eval].evaluation-pair.has-zoom.sizing-fit_screen .eval-image {
+        max-width: calc((100vw - 110px) / 3);
+        max-height: clamp(200px, calc(100svh - 196px), 88vh);
+    }
+}
+
+/* ---------- QC mode: yes/no verdict ----------
+   A QC trial has one right answer per image and no A/B symmetry, so the
+   selected state is colour-coded rather than accent-highlighted: red for
+   "not qualified", green for "qualified". The colour lands on both the
+   button and the image itself so the current verdict is unmistakable
+   without looking away from the tissue. */
+
+.evaluation-qc .qc-layout {
+    /* Two panels rather than three, so let them use the full width. */
+    justify-content: center;
+}
+
+.qc-btn.active {
+    color: #ffffff;
+}
+
+.qc-btn-no.active {
+    border-color: #e88898;
+    background: #7c2130;
+    box-shadow: inset 0 0 0 1px rgba(232, 136, 152, 0.4);
+}
+
+.qc-btn-yes.active {
+    border-color: #9ad98c;
+    background: #1f5c2a;
+    box-shadow: inset 0 0 0 1px rgba(154, 217, 140, 0.4);
+}
+
+.qc-verdict-wrapper {
+    transition:
+        border-color 0.14s ease,
+        box-shadow 0.14s ease;
+}
+
+.qc-verdict-wrapper.is-no {
+    border-color: #e15d6f;
+    box-shadow:
+        0 0 0 3px rgba(225, 93, 111, 0.7),
+        0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.qc-verdict-wrapper.is-yes {
+    border-color: #87c47a;
+    box-shadow:
+        0 0 0 3px rgba(135, 196, 122, 0.7),
+        0 10px 30px rgba(0, 0, 0, 0.28);
 }
 
 /* Next button mirrors the Previous/nav button styling (scoped to local mode
@@ -194,8 +301,9 @@
 .evaluation-pair .next-btn {
     flex: 1 1 0;
     min-width: 0;
-    min-height: 48px;
-    padding: 9px 13px;
+    min-height: 40px;
+    padding: 7px 10px;
+    font-size: 13px;
 }
 
 .next-btn:hover:not(:disabled) {

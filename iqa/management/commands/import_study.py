@@ -38,6 +38,21 @@ JSON format for 2AFC:
     ]
 }
 
+JSON format for QC (binary qualification -- one image beside its
+reference, answered yes/no):
+{
+    "name": "My QC Study",
+    "mode": "QC",
+    "prompt": "Is this image good enough to train on?",
+    "sampler": "sequential",
+    "stimuli": [
+        {
+            "image": "images/dist_001.png",
+            "reference": "images/ref_001.png"
+        }
+    ]
+}
+
 When using --append-to, only the "stimuli" list from
 the JSON is used; all other fields are ignored.
 
@@ -50,7 +65,7 @@ from django.core.management.base import (
 )
 
 from iqa.models import (
-    Image, Study, MOSStimulus, PairStimulus,
+    Image, Study, MOSStimulus, PairStimulus, QCStimulus,
 )
 
 
@@ -72,7 +87,10 @@ def _append_stimuli(
     Returns the number of stimuli created.
     """
     count = 0
-    if study.mode == Study.MODE_MOS:
+    if study.mode in (Study.MODE_MOS, Study.MODE_QC):
+        model = (
+            MOSStimulus if study.mode == Study.MODE_MOS else QCStimulus
+        )
         for i, s in enumerate(stimuli):
             img = _get_or_create_image(s['image'])
             ref = None
@@ -80,7 +98,7 @@ def _append_stimuli(
                 ref = _get_or_create_image(
                     s['reference'],
                 )
-            MOSStimulus.objects.create(
+            model.objects.create(
                 study=study, image=img,
                 reference=ref,
                 order=start_order + i,
@@ -180,19 +198,17 @@ class Command(BaseCommand):
             )
 
         if study.mode == Study.MODE_MOS:
-            max_order = (
-                study.mos_stimuli
-                .order_by('-order')
-                .values_list('order', flat=True)
-                .first()
-            )
+            existing = study.mos_stimuli
+        elif study.mode == Study.MODE_QC:
+            existing = study.qc_stimuli
         else:
-            max_order = (
-                study.pair_stimuli
-                .order_by('-order')
-                .values_list('order', flat=True)
-                .first()
-            )
+            existing = study.pair_stimuli
+        max_order = (
+            existing
+            .order_by('-order')
+            .values_list('order', flat=True)
+            .first()
+        )
         start = (max_order + 1) if max_order is not None else 0
 
         count = _append_stimuli(study, stimuli, start)
@@ -204,7 +220,7 @@ class Command(BaseCommand):
 
     def _handle_create(self, data, options):
         mode = data.get('mode', 'MOS')
-        if mode not in ('MOS', '2AFC'):
+        if mode not in ('MOS', '2AFC', 'QC'):
             raise CommandError(
                 f'Invalid mode: {mode}'
             )

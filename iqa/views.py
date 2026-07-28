@@ -25,12 +25,12 @@ from django.views.decorators.http import require_GET, require_POST
 
 from .forms import BulkUserCreationForm
 from .models import (
-    Study, MOSStimulus, PairStimulus,
-    MOSResponse, PairResponse, StudyAssignment,
+    Study, MOSStimulus, PairStimulus, QCStimulus,
+    MOSResponse, PairResponse, QCResponse, StudyAssignment,
 )
 from .samplers import (
     get_next_stimulus, get_progress, get_upcoming_stimuli,
-    ordered_stimulus_ids,
+    ordered_stimulus_ids, response_model,
 )
 
 logger = logging.getLogger('iqa.prefetch')
@@ -79,7 +79,7 @@ def _add_image_url(request, urls, seen, image):
 def _prefetch_image_urls(request, study, stimuli):
     urls = []
     seen = set()
-    if study.mode == Study.MODE_MOS:
+    if study.mode in (Study.MODE_MOS, Study.MODE_QC):
         for stimulus in stimuli:
             trial_urls = []
             trial_seen = set(seen)
@@ -149,14 +149,8 @@ def _history_for_previous(request, study, current_stimulus_id=None):
 
 
 def _answered_stimulus_ids(study, user):
-    if study.mode == Study.MODE_MOS:
-        return set(
-            MOSResponse.objects.filter(
-                user=user, stimulus__study=study,
-            ).values_list('stimulus_id', flat=True)
-        )
     return set(
-        PairResponse.objects.filter(
+        response_model(study).objects.filter(
             user=user, stimulus__study=study,
         ).values_list('stimulus_id', flat=True)
     )
@@ -233,6 +227,11 @@ def _pop_previous_stimulus(request, study, current_stimulus_id=None):
 
 
 def _evaluation_url(study, stimulus_id):
+    if study.mode == Study.MODE_QC:
+        # QC has no per-stimulus page; the browser drives the sequence.
+        return reverse(
+            'iqa:local_run', kwargs={'study_id': study.id},
+        )
     if study.mode == Study.MODE_MOS:
         return reverse(
             'iqa:mos_evaluation',
@@ -287,7 +286,7 @@ def next_stimulus(request):
     study_id = request.POST.get('study_id')
     study = get_object_or_404(Study, id=study_id)
     if _local_mode_available(study):
-        return redirect('iqa:pair_local_run', study_id=study.id)
+        return redirect('iqa:local_run', study_id=study.id)
     stimulus = get_next_stimulus(study, request.user)
 
     if stimulus is None:
@@ -493,13 +492,43 @@ def _record_pair_response(user, stimulus, display_choice, swap, revise=True):
         ),
     }
 
-    obj, created = PairResponse.objects.get_or_create(
+    return _upsert_response(
+        PairResponse, user, stimulus, defaults, revise,
+    )
+
+
+def _record_qc_response(user, stimulus, choice, revise=True):
+    """Record one QC yes/no verdict for (stimulus, user).
+
+    Same first-write-wins rule as ``_record_pair_response``: a forward answer
+    never clobbers an answer the server already holds (which may have come
+    from another device), while a deliberate revision does.
+    """
+    defaults = {
+        'choice': choice,
+        'shown_image': str(stimulus.image.fname),
+        'shown_reference': (
+            str(stimulus.reference.fname) if stimulus.reference else ''
+        ),
+    }
+    return _upsert_response(
+        QCResponse, user, stimulus, defaults, revise,
+    )
+
+
+def _upsert_response(model, user, stimulus, defaults, revise):
+    """Create the response, or overwrite it only when ``revise`` is set.
+
+    Returns True if the database now holds ``defaults``, False if an existing
+    answer was deliberately kept.
+    """
+    obj, created = model.objects.get_or_create(
         stimulus=stimulus, user=user, defaults=defaults,
     )
     if created:
         return True
     if not revise:
-        # Forward answer to an already-answered pair: keep what is there.
+        # Forward answer to an already-answered trial: keep what is there.
         return False
     for field, value in defaults.items():
         setattr(obj, field, value)
@@ -513,7 +542,7 @@ def pair_evaluation(request, study_id, stimulus_id):
         Study, id=study_id, mode=Study.MODE_2AFC,
     )
     if _local_mode_available(study):
-        return redirect('iqa:pair_local_run', study_id=study.id)
+        return redirect('iqa:local_run', study_id=study.id)
     stimulus = get_object_or_404(
         PairStimulus, id=stimulus_id, study=study,
     )
@@ -694,56 +723,78 @@ def evaluation_submit(request):
 
 
 # ---------------------------------------------------------------------------
-# Local-first 2AFC mode
+# Local-first evaluation (2AFC and QC)
 #
 # The browser downloads the whole study once, drives the trial sequence
 # itself, records each answer to localStorage, and syncs to the server in
 # the background. The server stays the source of truth via idempotent
 # upserts, so a lost background request just re-appears as an unanswered
 # trial (or is re-sent from localStorage on reload / page close).
+#
+# 2AFC opts in per study via ``use_local_mode``; QC has no server-driven
+# page at all, so it always runs here.
 # ---------------------------------------------------------------------------
+
+LOCAL_TEMPLATES = {
+    Study.MODE_2AFC: 'iqa/pair_local.html',
+    Study.MODE_QC: 'iqa/qc_local.html',
+}
 
 
 def _local_mode_available(study) -> bool:
+    if study.mode == Study.MODE_QC:
+        return True
     return (
         study.mode == Study.MODE_2AFC
         and study.use_local_mode
     )
 
 
+def _answered_choices(study, user, stimulus_ids=None) -> dict:
+    """This user's answers as ``{stimulus_id: choice}`` for a local study.
+
+    For 2AFC the value is the *display* choice (the on-screen A/B), which is
+    what the client stores; for QC it is the Y/N verdict, which has no
+    display/underlying distinction because QC never swaps.
+    """
+    scope = response_model(study).objects.filter(
+        user=user, stimulus__study=study,
+    )
+    if stimulus_ids is not None:
+        scope = scope.filter(stimulus_id__in=stimulus_ids)
+    if study.mode == Study.MODE_QC:
+        return {
+            str(stimulus_id): choice
+            for stimulus_id, choice in scope.values_list(
+                'stimulus_id', 'choice',
+            )
+        }
+    return {
+        str(stimulus_id): display_choice or choice
+        for stimulus_id, display_choice, choice in scope.values_list(
+            'stimulus_id', 'display_choice', 'choice',
+        )
+    }
+
+
 @login_required
-def pair_local_run(request, study_id):
+def local_run(request, study_id):
     study = get_object_or_404(Study, id=study_id, is_active=True)
     if not _local_mode_available(study):
         # Fall back to the classic server-driven flow.
         return redirect('iqa:home')
     return render(
-        request, 'iqa/pair_local.html', {'study': study},
+        request, LOCAL_TEMPLATES[study.mode], {'study': study},
     )
 
 
-@login_required
-@require_GET
-def study_manifest(request, study_id):
-    """Everything the browser needs to run the whole 2AFC study offline.
-
-    Returns the trials in this user's deterministic order (each with the
-    already-swap-applied image URLs) plus the set of answers the server
-    already holds, so the client can resume and reconcile.
-    """
-    study = get_object_or_404(Study, id=study_id, is_active=True)
-    if not _local_mode_available(study):
-        return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
-
-    user = request.user
-    order = ordered_stimulus_ids(study, user)
+def _pair_trials(request, study, user, order):
     stimuli = {
         s.id: s
         for s in study.pair_stimuli.select_related(
             'image_a', 'image_b', 'reference_a', 'reference_b',
         )
     }
-
     trials = []
     for stimulus_id in order:
         stimulus = stimuli.get(stimulus_id)
@@ -763,23 +814,58 @@ def study_manifest(request, study_id):
             'img_b': _image_url(request, img_b),
             'ref': _image_url(request, ref),
         })
+    return trials
 
-    answered = {}
-    for stimulus_id, display_choice, choice in PairResponse.objects.filter(
-        user=user, stimulus__study=study,
-    ).values_list('stimulus_id', 'display_choice', 'choice'):
-        answered[str(stimulus_id)] = display_choice or choice
+
+def _qc_trials(request, study, order):
+    stimuli = {
+        s.id: s
+        for s in study.qc_stimuli.select_related('image', 'reference')
+    }
+    trials = []
+    for stimulus_id in order:
+        stimulus = stimuli.get(stimulus_id)
+        if stimulus is None:
+            continue
+        trials.append({
+            'id': stimulus_id,
+            'img': _image_url(request, stimulus.image),
+            'ref': _image_url(request, stimulus.reference),
+        })
+    return trials
+
+
+@login_required
+@require_GET
+def study_manifest(request, study_id):
+    """Everything the browser needs to run the whole study offline.
+
+    Returns the trials in this user's deterministic order (2AFC trials come
+    with the swap already applied to the image URLs) plus the set of answers
+    the server already holds, so the client can resume and reconcile.
+    """
+    study = get_object_or_404(Study, id=study_id, is_active=True)
+    if not _local_mode_available(study):
+        return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
+
+    user = request.user
+    order = ordered_stimulus_ids(study, user)
+    if study.mode == Study.MODE_QC:
+        trials = _qc_trials(request, study, order)
+    else:
+        trials = _pair_trials(request, study, user, order)
 
     return JsonResponse({
         'study': {
             'id': study.id,
             'name': study.name,
+            'mode': study.mode,
             'prompt': study.prompt,
             'zoom_enabled': study.zoom_enabled,
             'zoom_factor': study.zoom_factor,
         },
         'trials': trials,
-        'answered': answered,
+        'answered': _answered_choices(study, user),
         'total': len(trials),
     })
 
@@ -787,30 +873,30 @@ def study_manifest(request, study_id):
 @login_required
 @require_GET
 def study_answered(request, study_id):
-    """The server's answers for this user, as ``{stimulus_id: display_choice}``.
+    """The server's answers for this user, as ``{stimulus_id: choice}``.
 
     Used by the client to verify completeness on the done screen and to
     reconcile after a reload without downloading the whole manifest again.
     Returning the *choice* (not just the id) lets the client tell whether the
     server actually holds its local answer, so a value that differs — e.g. a
-    pair answered on another device, or an answer a background race left stale
-    — is corrected instead of silently trusted.
+    trial answered on another device, or an answer a background race left
+    stale — is corrected instead of silently trusted.
     """
     study = get_object_or_404(Study, id=study_id, is_active=True)
     if not _local_mode_available(study):
         return JsonResponse({'error': 'Local mode unavailable.'}, status=404)
-    answered = {}
-    for stimulus_id, display_choice, choice in PairResponse.objects.filter(
-        user=request.user, stimulus__study=study,
-    ).values_list('stimulus_id', 'display_choice', 'choice'):
-        answered[str(stimulus_id)] = display_choice or choice
-    return JsonResponse({'answered': answered})
+    return JsonResponse({
+        'answered': _answered_choices(study, request.user),
+    })
 
 
 @login_required
 @require_POST
 def evaluation_submit_batch(request):
-    """Upsert many 2AFC answers at once. Idempotent on (stimulus, user).
+    """Upsert many local-mode answers at once. Idempotent on (stimulus, user).
+
+    Serves both 2AFC (A/B choices, with the swap flag) and QC (Y/N verdicts);
+    the study's mode decides which stimuli and choices are valid.
 
     Accepts either a JSON body (background flush via fetch) or a form field
     ``payload`` containing the JSON (page-close flush via sendBeacon, which
@@ -832,8 +918,10 @@ def evaluation_submit_batch(request):
         data = {}
 
     study = get_object_or_404(
-        Study, id=data.get('study_id'), mode=Study.MODE_2AFC,
+        Study, id=data.get('study_id'),
+        mode__in=[Study.MODE_2AFC, Study.MODE_QC],
     )
+    is_qc = study.mode == Study.MODE_QC
     responses = data.get('responses')
     if not isinstance(responses, list):
         responses = []
@@ -845,19 +933,29 @@ def evaluation_submit_batch(request):
                 wanted_ids.append(int(item.get('stimulus_id')))
             except (TypeError, ValueError):
                 continue
-    stimuli = {
-        s.id: s
-        for s in study.pair_stimuli.filter(
-            id__in=wanted_ids,
-        ).select_related(
-            'image_a', 'image_b', 'reference_a', 'reference_b',
-        )
-    }
+    if is_qc:
+        valid_choices = (QCResponse.CHOICE_YES, QCResponse.CHOICE_NO)
+        stimuli = {
+            s.id: s
+            for s in study.qc_stimuli.filter(
+                id__in=wanted_ids,
+            ).select_related('image', 'reference')
+        }
+    else:
+        valid_choices = (PairResponse.CHOICE_A, PairResponse.CHOICE_B)
+        stimuli = {
+            s.id: s
+            for s in study.pair_stimuli.filter(
+                id__in=wanted_ids,
+            ).select_related(
+                'image_a', 'image_b', 'reference_a', 'reference_b',
+            )
+        }
 
     saved = 0
     kept = 0
-    touched_ids = []      # pairs we actually processed (saved or kept)
-    rejected_ids = []     # pairs we can never save (unknown stimulus/bad choice)
+    touched_ids = []      # trials we actually processed (saved or kept)
+    rejected_ids = []     # trials we can never save (unknown stimulus/bad choice)
     with transaction.atomic():
         for item in responses:
             if not isinstance(item, dict):
@@ -866,21 +964,24 @@ def evaluation_submit_batch(request):
                 stimulus_id = int(item.get('stimulus_id'))
             except (TypeError, ValueError):
                 continue
-            display_choice = item.get('choice')
+            choice = item.get('choice')
             stimulus = stimuli.get(stimulus_id)
-            if display_choice not in (
-                PairResponse.CHOICE_A, PairResponse.CHOICE_B,
-            ) or stimulus is None:
+            if choice not in valid_choices or stimulus is None:
                 # Unknown/deleted stimulus or a malformed choice: this item can
                 # never be persisted. Tell the client so it stops resending it
                 # forever (otherwise the done screen loops on "Upload now").
                 rejected_ids.append(str(stimulus_id))
                 continue
-            wrote = _record_pair_response(
-                request.user, stimulus, display_choice,
-                bool(item.get('swap')),
-                revise=bool(item.get('revise')),
-            )
+            revise = bool(item.get('revise'))
+            if is_qc:
+                wrote = _record_qc_response(
+                    request.user, stimulus, choice, revise=revise,
+                )
+            else:
+                wrote = _record_pair_response(
+                    request.user, stimulus, choice,
+                    bool(item.get('swap')), revise=revise,
+                )
             if wrote:
                 saved += 1
             else:
@@ -890,16 +991,12 @@ def evaluation_submit_batch(request):
     # Hand back the choice the server now holds so the client can reconcile
     # (mark an answer synced only when the server truly has *its* value). When
     # a write was kept, this client is likely behind another device, so return
-    # the full answered set for a complete catch-up; otherwise just the pairs
+    # the full answered set for a complete catch-up; otherwise just the trials
     # in this batch keeps the response small on the hot submit path.
-    scope = PairResponse.objects.filter(user=request.user, stimulus__study=study)
-    if not kept:
-        scope = scope.filter(stimulus_id__in=touched_ids)
-    answered = {}
-    for stimulus_id, display_choice, choice in scope.values_list(
-        'stimulus_id', 'display_choice', 'choice',
-    ):
-        answered[str(stimulus_id)] = display_choice or choice
+    answered = _answered_choices(
+        study, request.user,
+        stimulus_ids=None if kept else touched_ids,
+    )
 
     return JsonResponse({
         'success': True,
@@ -984,6 +1081,7 @@ def view_responses(request):
     users = User.objects.filter(is_active=True).order_by('username')
     mos_data = []
     pair_data = []
+    qc_data = []
     study = None
     selected_user = None
 
@@ -992,7 +1090,15 @@ def view_responses(request):
 
     if study_id:
         study = get_object_or_404(Study, id=study_id)
-        if study.mode == Study.MODE_MOS:
+        if study.mode == Study.MODE_QC:
+            qc_data = QCResponse.objects.filter(
+                stimulus__study=study,
+            ).select_related(
+                'stimulus__image', 'stimulus__reference', 'user',
+            ).order_by('stimulus__order', 'user__username')
+            if selected_user is not None:
+                qc_data = qc_data.filter(user=selected_user)
+        elif study.mode == Study.MODE_MOS:
             mos_data = MOSResponse.objects.filter(
                 stimulus__study=study,
             ).select_related(
@@ -1022,6 +1128,7 @@ def view_responses(request):
             'selected_user': selected_user,
             'mos_data': mos_data,
             'pair_data': pair_data,
+            'qc_data': qc_data,
         },
     )
 
@@ -1036,66 +1143,9 @@ def export_own_responses_csv(request, study_id: int):
     response['Content-Disposition'] = (
         f'attachment; filename="{fname}_my_responses.csv"'
     )
-    writer = _SafeCsvWriter(response)
-
-    if study.mode == Study.MODE_MOS:
-        writer.writerow([
-            'user', 'stimulus_order',
-            'image', 'reference', 'score',
-        ])
-        for r in MOSResponse.objects.filter(
-            stimulus__study=study, user=request.user,
-        ).select_related(
-            'stimulus__image', 'stimulus__reference',
-            'user',
-        ).order_by('stimulus__order'):
-            ref = ''
-            if r.stimulus.reference:
-                ref = str(r.stimulus.reference.fname)
-            writer.writerow([
-                r.user.username,
-                r.stimulus.order,
-                str(r.stimulus.image.fname),
-                ref,
-                r.score,
-            ])
-    else:
-        writer.writerow([
-            'user', 'stimulus_order',
-            'image_a', 'image_b',
-            'reference_a', 'reference_b', 'choice',
-            'display_choice', 'was_swapped',
-            'shown_image_a', 'shown_image_b',
-            'shown_reference_a', 'shown_reference_b',
-        ])
-        for r in PairResponse.objects.filter(
-            stimulus__study=study, user=request.user,
-        ).select_related(
-            'stimulus__image_a', 'stimulus__image_b',
-            'stimulus__reference_a',
-            'stimulus__reference_b',
-            'user',
-        ).order_by('stimulus__order'):
-            ref_a = ''
-            if r.stimulus.reference_a:
-                ref_a = str(r.stimulus.reference_a.fname)
-            ref_b = ''
-            if r.stimulus.reference_b:
-                ref_b = str(r.stimulus.reference_b.fname)
-            writer.writerow([
-                r.user.username,
-                r.stimulus.order,
-                str(r.stimulus.image_a.fname),
-                str(r.stimulus.image_b.fname),
-                ref_a, ref_b, r.choice,
-                r.display_choice,
-                r.was_swapped,
-                r.shown_image_a,
-                r.shown_image_b,
-                r.shown_reference_a,
-                r.shown_reference_b,
-            ])
-
+    _write_study_responses(
+        _SafeCsvWriter(response), study, user=request.user,
+    )
     return response
 
 
@@ -1105,7 +1155,33 @@ def _write_study_responses(writer, study, user=None):
     Same column layout whether or not ``user`` is set, so a per-annotator
     export is a strict row-subset of the whole-study export.
     """
-    if study.mode == Study.MODE_MOS:
+    if study.mode == Study.MODE_QC:
+        writer.writerow([
+            'user', 'stimulus_order',
+            'image', 'reference', 'choice',
+            'shown_image', 'shown_reference',
+        ])
+        rows = QCResponse.objects.filter(
+            stimulus__study=study,
+        ).select_related(
+            'stimulus__image', 'stimulus__reference', 'user',
+        ).order_by('stimulus__order', 'user__username')
+        if user is not None:
+            rows = rows.filter(user=user)
+        for r in rows:
+            ref = ''
+            if r.stimulus.reference:
+                ref = str(r.stimulus.reference.fname)
+            writer.writerow([
+                r.user.username,
+                r.stimulus.order,
+                str(r.stimulus.image.fname),
+                ref,
+                r.choice,
+                r.shown_image,
+                r.shown_reference,
+            ])
+    elif study.mode == Study.MODE_MOS:
         writer.writerow([
             'user', 'stimulus_order',
             'image', 'reference', 'score',
@@ -1206,9 +1282,9 @@ def annotator_progress(request):
     )
     totals = {s.id: s.stimulus_count() for s in studies}
 
-    # done count + last activity per (user, study), across both modes.
+    # done count + last activity per (user, study), across all three modes.
     done = {}
-    for model in (PairResponse, MOSResponse):
+    for model in (PairResponse, MOSResponse, QCResponse):
         for row in model.objects.values(
             'user_id', 'stimulus__study_id',
         ).annotate(n=Count('id'), last=Max('timestamp')):
@@ -1216,23 +1292,28 @@ def annotator_progress(request):
             done[key] = (row['n'], row['last'])
 
     # Per-rater assignments: an assigned rater's denominator is their own
-    # pair count, and their "done" only counts answers within that set.
+    # stimulus count, and their "done" only counts answers within that set.
     # Unassigned users keep the full-study total (backward-compatible).
-    assigned = {}  # (user_id, study_id) -> set(pair_ids)
-    for sa in StudyAssignment.objects.prefetch_related('pair_stimuli'):
+    # 2AFC assignments live on pair_stimuli and QC ones on qc_stimuli, so the
+    # study's mode picks which side to read (and which responses to count).
+    assigned = {}  # (user_id, study_id) -> set(stimulus_ids)
+    for sa in StudyAssignment.objects.select_related('study').prefetch_related(
+        'pair_stimuli', 'qc_stimuli',
+    ):
         assigned[(sa.user_id, sa.study_id)] = set(
-            sa.pair_stimuli.values_list('id', flat=True)
+            sa.stimuli().values_list('id', flat=True)
         )
     assigned_done = {}  # (user_id, study_id) -> answers within assignment
     gated_study_ids = {sid for (_uid, sid) in assigned}
     if gated_study_ids:
-        for uid, stim_id, sid in PairResponse.objects.filter(
-            stimulus__study_id__in=gated_study_ids,
-        ).values_list('user_id', 'stimulus_id', 'stimulus__study_id'):
-            pairs = assigned.get((uid, sid))
-            if pairs is not None and stim_id in pairs:
-                akey = (uid, sid)
-                assigned_done[akey] = assigned_done.get(akey, 0) + 1
+        for model in (PairResponse, QCResponse):
+            for uid, stim_id, sid in model.objects.filter(
+                stimulus__study_id__in=gated_study_ids,
+            ).values_list('user_id', 'stimulus_id', 'stimulus__study_id'):
+                stimuli = assigned.get((uid, sid))
+                if stimuli is not None and stim_id in stimuli:
+                    akey = (uid, sid)
+                    assigned_done[akey] = assigned_done.get(akey, 0) + 1
 
     rows = []
     for user in users:
@@ -1315,6 +1396,20 @@ def export_user_responses_csv(request, user_id):
             str(st.image.fname), '',
             str(st.reference.fname) if st.reference else '', '',
             '', '', '', '',
+        ])
+
+    # Single-image modes reuse the "_a" slot for their one image/reference,
+    # the same way MOS rows do above.
+    for r in QCResponse.objects.filter(user=user).select_related(
+        'stimulus__study', 'stimulus__image', 'stimulus__reference',
+    ).order_by('stimulus__study_id', 'stimulus__order'):
+        st = r.stimulus
+        writer.writerow([
+            st.study.name, 'QC', st.order, r.timestamp.isoformat(),
+            r.choice, '', '', '',
+            str(st.image.fname), '',
+            str(st.reference.fname) if st.reference else '', '',
+            r.shown_image, '', r.shown_reference, '',
         ])
 
     return response

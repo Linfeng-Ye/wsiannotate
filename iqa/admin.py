@@ -6,8 +6,8 @@ from django.contrib.auth.models import User
 
 from .models import (
     Image, Study,
-    MOSStimulus, PairStimulus,
-    MOSResponse, PairResponse,
+    MOSStimulus, PairStimulus, QCStimulus,
+    MOSResponse, PairResponse, QCResponse,
     StudyAssignment,
 )
 
@@ -39,6 +39,12 @@ class StudyAdmin(admin.ModelAdmin):
                 + f'?study__id__exact={obj.pk}'
             )
             label = 'Edit MOS stimuli'
+        elif obj.mode == Study.MODE_QC:
+            url = (
+                reverse('admin:iqa_qcstimulus_changelist')
+                + f'?study__id__exact={obj.pk}'
+            )
+            label = 'Edit QC stimuli'
         else:
             url = (
                 reverse('admin:iqa_pairstimulus_changelist')
@@ -70,6 +76,23 @@ class PairStimulusAdmin(admin.ModelAdmin):
     )
 
 
+@admin.register(QCStimulus)
+class QCStimulusAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'study', 'order', 'image', 'reference',
+    )
+    list_filter = ('study',)
+    raw_id_fields = ('image', 'reference')
+
+
+@admin.register(QCResponse)
+class QCResponseAdmin(admin.ModelAdmin):
+    list_display = (
+        'id', 'user', 'stimulus', 'choice', 'timestamp',
+    )
+    list_filter = ('stimulus__study', 'user', 'choice')
+
+
 @admin.register(MOSResponse)
 class MOSResponseAdmin(admin.ModelAdmin):
     list_display = (
@@ -91,14 +114,15 @@ class PairResponseAdmin(admin.ModelAdmin):
 
 @admin.register(StudyAssignment)
 class StudyAssignmentAdmin(admin.ModelAdmin):
-    list_display = ('id', 'study', 'user', 'pair_count', 'created')
+    list_display = ('id', 'study', 'user', 'stimulus_count', 'created')
     list_filter = ('study', 'user')
     raw_id_fields = ('user',)
-    filter_horizontal = ('pair_stimuli',)
+    filter_horizontal = ('pair_stimuli', 'qc_stimuli')
 
-    @admin.display(description='Pairs')
-    def pair_count(self, obj: StudyAssignment) -> int:
-        return obj.pair_stimuli.count()
+    @admin.display(description='Stimuli')
+    def stimulus_count(self, obj: StudyAssignment) -> int:
+        # Only the side matching the study's mode is ever consulted.
+        return obj.stimuli().count()
 
 
 class CustomUserAdmin(UserAdmin):

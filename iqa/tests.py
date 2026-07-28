@@ -5,8 +5,8 @@ from django.test import SimpleTestCase, TestCase, override_settings
 from django.urls import NoReverseMatch, reverse
 
 from .models import (
-    Image, Study, MOSStimulus, PairStimulus,
-    MOSResponse, PairResponse,
+    Image, Study, MOSStimulus, PairStimulus, QCStimulus,
+    MOSResponse, PairResponse, QCResponse,
 )
 from .samplers import (
     get_next_stimulus, get_upcoming_stimuli, ordered_stimuli,
@@ -643,13 +643,13 @@ class LocalModeTests(TestCase):
         ).status_code, 404)
         self.assertRedirects(
             self.client.get(
-                reverse('iqa:pair_local_run', args=[self.study.id]),
+                reverse('iqa:local_run', args=[self.study.id]),
             ),
             reverse('iqa:home'), fetch_redirect_response=False,
         )
 
     def test_classic_entry_points_redirect_to_local_run(self):
-        run = reverse('iqa:pair_local_run', args=[self.study.id])
+        run = reverse('iqa:local_run', args=[self.study.id])
         # Old direct/bookmarked evaluation URL funnels into local mode.
         self.assertRedirects(
             self.client.get(reverse('iqa:pair_evaluation', kwargs={
@@ -676,7 +676,7 @@ class LocalModeTests(TestCase):
     })
     def test_run_view_renders_for_local_study(self):
         r = self.client.get(
-            reverse('iqa:pair_local_run', args=[self.study.id]),
+            reverse('iqa:local_run', args=[self.study.id]),
         )
         self.assertEqual(r.status_code, 200)
         self.assertContains(r, 'data-local-eval')
@@ -688,10 +688,10 @@ class AssignmentTests(TestCase):
     def setUp(self):
         from .models import StudyAssignment
         from .samplers import (
-            assigned_pair_ids, ordered_stimulus_ids, get_progress,
+            assigned_stimulus_ids, ordered_stimulus_ids, get_progress,
         )
         self.StudyAssignment = StudyAssignment
-        self.assigned_pair_ids = assigned_pair_ids
+        self.assigned_stimulus_ids = assigned_stimulus_ids
         self.ordered_stimulus_ids = ordered_stimulus_ids
         self.get_progress = get_progress
 
@@ -719,14 +719,14 @@ class AssignmentTests(TestCase):
         return sa
 
     def test_no_assignments_means_everyone_sees_all(self):
-        self.assertIsNone(self.assigned_pair_ids(self.study, self.r1))
+        self.assertIsNone(self.assigned_stimulus_ids(self.study, self.r1))
         self.assertEqual(
             self.get_progress(self.study, self.r1)['total'], 5,
         )
 
     def test_assigned_rater_is_restricted(self):
         self._assign(self.r1, self.stims[:3])
-        ids = self.assigned_pair_ids(self.study, self.r1)
+        ids = self.assigned_stimulus_ids(self.study, self.r1)
         self.assertEqual(len(ids), 3)
         self.assertEqual(len(self.ordered_stimulus_ids(self.study, self.r1)), 3)
         self.assertEqual(
@@ -738,7 +738,7 @@ class AssignmentTests(TestCase):
     def test_unassigned_rater_on_gated_study_sees_nothing(self):
         self._assign(self.r1, self.stims[:3])
         # r2 has no assignment, but the study is now gated
-        self.assertEqual(self.assigned_pair_ids(self.study, self.r2), set())
+        self.assertEqual(self.assigned_stimulus_ids(self.study, self.r2), set())
         self.assertEqual(
             self.get_progress(self.study, self.r2)['total'], 0,
         )
@@ -747,8 +747,8 @@ class AssignmentTests(TestCase):
     def test_overlap_between_raters(self):
         self._assign(self.r1, self.stims[:3])   # 0,1,2
         self._assign(self.r2, self.stims[2:])   # 2,3,4
-        a = self.assigned_pair_ids(self.study, self.r1)
-        b = self.assigned_pair_ids(self.study, self.r2)
+        a = self.assigned_stimulus_ids(self.study, self.r1)
+        b = self.assigned_stimulus_ids(self.study, self.r2)
         self.assertEqual(len(a & b), 1)
         self.assertEqual(len(a | b), 5)
 
@@ -771,14 +771,14 @@ class AssignmentTests(TestCase):
             json.dump(doc, f)
             path = f.name
         call_command('import_assignments', path)
-        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r1)), 3)
-        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r2)), 2)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r1)), 3)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r2)), 2)
         # re-import with a smaller set -> replaced, not appended
         doc['assignments'][0]['pairs'] = ['p0']
         with open(path, 'w') as f:
             json.dump(doc, f)
         call_command('import_assignments', path)
-        self.assertEqual(len(self.assigned_pair_ids(self.study, self.r1)), 1)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r1)), 1)
 
     def test_progress_dashboard_uses_assigned_total(self):
         staff = User.objects.create_user(
@@ -835,6 +835,289 @@ class AssignmentTests(TestCase):
         self.assertFalse(
             self.StudyAssignment.objects.filter(study=self.study).exists()
         )
+
+
+class QCModeTests(TestCase):
+    """Binary qualification studies: manifest, batch upsert, exports."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('qc01', password='x')
+        self.client.force_login(self.user)
+        self.study = Study.objects.create(
+            name='Q', mode=Study.MODE_QC, is_active=True,
+            sampler=Study.SAMPLER_SEQUENTIAL,
+        )
+        self.stims = []
+        for i in range(4):
+            img = Image.objects.create(fname=f'images/q{i}.png')
+            ref = Image.objects.create(fname=f'images/q{i}_ref.png')
+            self.stims.append(QCStimulus.objects.create(
+                study=self.study, image=img, reference=ref, order=i,
+            ))
+
+    def _manifest(self):
+        return self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+
+    def _batch(self, responses):
+        return self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps({
+                'study_id': self.study.id, 'responses': responses,
+            }),
+            content_type='application/json',
+        )
+
+    def test_manifest_lists_one_image_and_reference_per_trial(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        data = self._manifest()
+        self.assertEqual(data['study']['mode'], 'QC')
+        self.assertEqual(data['total'], 4)
+        t0 = data['trials'][0]
+        self.assertTrue(t0['img'].startswith('http'))
+        self.assertTrue(t0['ref'].startswith('http'))
+        # No second candidate and no A/B swap in QC.
+        self.assertNotIn('img_a', t0)
+        self.assertNotIn('swap', t0)
+        self.assertEqual(data['answered'].get(str(self.stims[0].id)), 'Y')
+
+    @override_settings(STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND':
+                'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    })
+    def test_qc_study_is_local_mode_without_the_flag(self):
+        """QC has no server-driven page, so it never needs use_local_mode."""
+        self.assertFalse(self.study.use_local_mode)
+        response = self.client.get(
+            reverse('iqa:local_run', args=[self.study.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'iqa/qc_local.html')
+        self.assertContains(response, 'data-mode="QC"')
+
+    def test_batch_saves_yes_no_and_snapshots_shown_filenames(self):
+        response = self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'Y'},
+            {'stimulus_id': self.stims[1].id, 'choice': 'N'},
+        ])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['saved'], 2)
+        yes = QCResponse.objects.get(stimulus=self.stims[0])
+        self.assertEqual(yes.choice, 'Y')
+        self.assertEqual(yes.shown_image, 'images/q0.png')
+        self.assertEqual(yes.shown_reference, 'images/q0_ref.png')
+        self.assertEqual(
+            QCResponse.objects.get(stimulus=self.stims[1]).choice, 'N',
+        )
+
+    def test_forward_answer_never_overwrites_but_revise_does(self):
+        self._batch([{'stimulus_id': self.stims[0].id, 'choice': 'Y'}])
+
+        # A forward answer to an already-answered trial (e.g. a stale tab)
+        # is kept out; the server's value wins and is handed back.
+        response = self._batch(
+            [{'stimulus_id': self.stims[0].id, 'choice': 'N'}]
+        )
+        body = response.json()
+        self.assertEqual(body['saved'], 0)
+        self.assertEqual(body['kept'], 1)
+        self.assertEqual(body['answered'][str(self.stims[0].id)], 'Y')
+        self.assertEqual(
+            QCResponse.objects.get(stimulus=self.stims[0]).choice, 'Y',
+        )
+
+        # A deliberate revise overwrites in place, never duplicating.
+        self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'N', 'revise': True},
+        ])
+        rows = QCResponse.objects.filter(stimulus=self.stims[0])
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().choice, 'N')
+
+    def test_batch_rejects_pair_choices_and_unknown_stimuli(self):
+        response = self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'A'},
+            {'stimulus_id': 999999, 'choice': 'Y'},
+        ])
+        body = response.json()
+        self.assertEqual(body['saved'], 0)
+        self.assertEqual(
+            sorted(body['rejected_ids']),
+            sorted([str(self.stims[0].id), '999999']),
+        )
+        self.assertFalse(QCResponse.objects.exists())
+
+    def test_answered_endpoint_returns_choice_map(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[2], user=self.user, choice='N',
+        )
+        data = self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id])
+        ).json()
+        self.assertEqual(
+            data['answered'], {str(self.stims[2].id): 'N'},
+        )
+
+    def test_progress_counts_qc_responses(self):
+        from .samplers import get_progress
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        self.assertEqual(
+            get_progress(self.study, self.user), {'done': 1, 'total': 4},
+        )
+
+    def test_export_lists_image_reference_and_verdict(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+            shown_image='images/q0.png',
+            shown_reference='images/q0_ref.png',
+        )
+        staff = User.objects.create_user(
+            'qcstaff', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        body = self.client.get(
+            reverse('iqa:export_csv', args=[self.study.id])
+        ).content.decode()
+        self.assertIn('image,reference,choice', body)
+        self.assertIn('qc01,0,images/q0.png,images/q0_ref.png,Y', body)
+
+    def test_staff_dashboard_counts_qc_progress(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        staff = User.objects.create_user(
+            'qcstaff2', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        response = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertEqual(response.status_code, 200)
+        cells = {
+            (row['user'].username, cell['study'].id): cell
+            for row in response.context['rows']
+            for cell in row['cells']
+        }
+        cell = cells[('qc01', self.study.id)]
+        self.assertEqual((cell['done'], cell['total']), (1, 4))
+
+
+class QCAssignmentTests(TestCase):
+    """Per-rater assignment gating for QC studies + the import command."""
+
+    def setUp(self):
+        from .models import StudyAssignment
+        from .samplers import assigned_stimulus_ids, get_progress
+        self.StudyAssignment = StudyAssignment
+        self.assigned_stimulus_ids = assigned_stimulus_ids
+        self.get_progress = get_progress
+
+        self.r1 = User.objects.create_user('qcr1', password='x')
+        self.r2 = User.objects.create_user('qcr2', password='x')
+        self.study = Study.objects.create(
+            name='QA', mode=Study.MODE_QC, is_active=True,
+        )
+        self.stims = []
+        for i in range(5):
+            img = Image.objects.create(fname=f'images/Test/s{i}.png')
+            ref = Image.objects.create(fname=f'images/Test/s{i}_ref.png')
+            self.stims.append(QCStimulus.objects.create(
+                study=self.study, image=img, reference=ref, order=i,
+            ))
+
+    def _assign(self, user, stims):
+        sa = self.StudyAssignment.objects.create(
+            study=self.study, user=user,
+        )
+        sa.qc_stimuli.set(stims)
+        return sa
+
+    def test_assigned_rater_is_restricted(self):
+        self._assign(self.r1, self.stims[:2])
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r1),
+            {self.stims[0].id, self.stims[1].id},
+        )
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 2,
+        )
+
+    def test_unassigned_rater_on_gated_study_sees_nothing(self):
+        self._assign(self.r1, self.stims[:2])
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r2), set(),
+        )
+        self.assertEqual(
+            self.get_progress(self.study, self.r2)['total'], 0,
+        )
+
+    def test_manifest_only_lists_assigned_stimuli(self):
+        self._assign(self.r1, self.stims[:2])
+        self.client.force_login(self.r1)
+        data = self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+        self.assertEqual(
+            [t['id'] for t in data['trials']],
+            [self.stims[0].id, self.stims[1].id],
+        )
+
+    def test_import_command_keys_qc_stimuli_by_stem(self):
+        import tempfile
+        from django.core.management import call_command
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'qcr1', 'pairs': ['s0', 's1', 's2']},
+                # Full path and bare filename resolve to the same stimulus.
+                {'username': 'qcr2', 'pairs': [
+                    'images/Test/s3.png', 's4.png',
+                ]},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        call_command('import_assignments', path)
+        self.assertEqual(
+            len(self.assigned_stimulus_ids(self.study, self.r1)), 3,
+        )
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r2),
+            {self.stims[3].id, self.stims[4].id},
+        )
+
+    def test_dashboard_uses_assigned_total_for_qc(self):
+        self._assign(self.r1, self.stims[:2])
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.r1, choice='Y',
+        )
+        # An answer outside the assignment must not inflate "done".
+        QCResponse.objects.create(
+            stimulus=self.stims[4], user=self.r1, choice='N',
+        )
+        staff = User.objects.create_user(
+            'qcstaff3', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        response = self.client.get(reverse('iqa:annotator_progress'))
+        cell = next(
+            cell
+            for row in response.context['rows'] if row['user'] == self.r1
+            for cell in row['cells'] if cell['study'].id == self.study.id
+        )
+        self.assertEqual((cell['done'], cell['total']), (1, 2))
 
 
 class HealthCheckMiddlewareTests(SimpleTestCase):

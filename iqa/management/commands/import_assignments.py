@@ -1,10 +1,10 @@
 """
-Import per-rater pair assignments for a 2AFC study from a JSON file.
+Import per-rater stimulus assignments for a 2AFC or QC study from a JSON file.
 
 Once a study has any assignment, it becomes assignment-gated: each rater
-sees only the pairs assigned to them (overlaps between raters are fine and
+sees only the stimuli assigned to them (overlaps between raters are fine and
 by design). A rater with no assignment sees nothing. A study with no
-assignments at all behaves as before (every rater sees every pair).
+assignments at all behaves as before (every rater sees everything).
 
 JSON format:
 {
@@ -15,11 +15,12 @@ JSON format:
     ]
 }
 
-Each entry in "pairs" identifies a PairStimulus by its *stem* -- the shared
-prefix of the a/b/ref filenames, e.g. "000001_x14152_y152922_0000" for
-"images/Test/000001_x14152_y152922_0000_a.png". The full image_a path
-("images/Test/000001_x14152_y152922_0000_a.png") and the bare a-filename
-("000001_x14152_y152922_0000_a.png") are also accepted.
+Each entry in "pairs" (also accepted as "stimuli") identifies a stimulus by
+its *stem* -- for 2AFC the shared prefix of the a/b/ref filenames, e.g.
+"000001_x14152_y152922_0000" for
+"images/Test/000001_x14152_y152922_0000_a.png"; for QC the image filename
+without its extension. The full image path and the bare filename are also
+accepted in both modes.
 
 Re-importing replaces each listed rater's assignment for the study, so a
 corrected JSON can be applied idempotently. Raters not present in the JSON
@@ -35,27 +36,38 @@ from django.core.management.base import (
 )
 from django.db import transaction
 
-from iqa.models import Study, PairStimulus, StudyAssignment
+from iqa.models import Study, StudyAssignment
 
 _A_SUFFIX = re.compile(r'_a\.[^.]+$')
+_ANY_SUFFIX = re.compile(r'\.[^.]+$')
 
 
-def _pair_key_lookup(study: Study) -> dict:
-    """Map every accepted identifier -> PairStimulus for the study's pairs."""
+def _stimulus_key_lookup(study: Study) -> dict:
+    """Map every accepted identifier -> stimulus for the study's stimuli.
+
+    2AFC pairs are keyed off ``image_a`` (whose ``_a`` suffix is stripped to
+    give the pair stem); QC stimuli are keyed off their single image.
+    """
     lookup = {}
-    pairs = study.pair_stimuli.select_related('image_a')
-    for pair in pairs:
-        rel = pair.image_a.fname.name  # e.g. images/Test/..._a.png
-        base = rel.rsplit('/', 1)[-1]  # ..._a.png
-        stem = _A_SUFFIX.sub('', base)  # ...
+    if study.mode == Study.MODE_QC:
+        stimuli = study.qc_stimuli.select_related('image')
+        image_attr, strip = 'image', _ANY_SUFFIX
+    else:
+        stimuli = study.pair_stimuli.select_related('image_a')
+        image_attr, strip = 'image_a', _A_SUFFIX
+    for stimulus in stimuli:
+        rel = getattr(stimulus, image_attr).fname.name  # images/Test/....png
+        base = rel.rsplit('/', 1)[-1]                   # ....png
+        stem = strip.sub('', base)
         for key in (rel, base, stem):
-            lookup[key] = pair
+            lookup[key] = stimulus
     return lookup
 
 
 class Command(BaseCommand):
     help = (
-        'Import per-rater pair assignments for a 2AFC study from JSON.'
+        'Import per-rater stimulus assignments for a 2AFC or QC study '
+        'from JSON.'
     )
 
     def add_arguments(self, parser):
@@ -70,43 +82,43 @@ class Command(BaseCommand):
             raise CommandError(f'Cannot read {path}: {e}') from e
 
         study = self._resolve_study(data)
-        if study.mode != Study.MODE_2AFC:
+        if study.mode not in (Study.MODE_2AFC, Study.MODE_QC):
             raise CommandError(
                 f'Study "{study.name}" is {study.mode}; assignments '
-                f'are only supported for 2AFC studies.'
+                f'are only supported for 2AFC and QC studies.'
             )
 
         assignments = data.get('assignments', [])
         if not isinstance(assignments, list) or not assignments:
             raise CommandError('JSON has no "assignments" list.')
 
-        lookup = _pair_key_lookup(study)
+        lookup = _stimulus_key_lookup(study)
 
         # Resolve everything up front so a bad key aborts before any write.
-        resolved = []          # list of (User, [PairStimulus, ...])
+        resolved = []          # list of (User, [stimulus, ...])
         unknown_users = []
         unknown_pairs = {}     # username -> [bad keys]
         for entry in assignments:
             username = entry.get('username')
-            keys = entry.get('pairs', [])
+            keys = entry.get('pairs') or entry.get('stimuli') or []
             try:
                 user = User.objects.get(username=username)
             except User.DoesNotExist:
                 unknown_users.append(username)
                 continue
-            pairs = []
+            stimuli = []
             bad = []
             seen = set()
             for key in keys:
-                pair = lookup.get(str(key))
-                if pair is None:
+                stimulus = lookup.get(str(key))
+                if stimulus is None:
                     bad.append(key)
-                elif pair.id not in seen:
-                    seen.add(pair.id)
-                    pairs.append(pair)
+                elif stimulus.id not in seen:
+                    seen.add(stimulus.id)
+                    stimuli.append(stimulus)
             if bad:
                 unknown_pairs[username] = bad
-            resolved.append((user, pairs))
+            resolved.append((user, stimuli))
 
         if unknown_users:
             raise CommandError(
@@ -120,23 +132,27 @@ class Command(BaseCommand):
                 for u, b in unknown_pairs.items()
             ]
             raise CommandError(
-                'Some pair keys did not match any pair in study '
+                'Some keys did not match any stimulus in study '
                 f'"{study.name}":\n' + '\n'.join(lines)
             )
 
+        noun = 'stimuli' if study.mode == Study.MODE_QC else 'pairs'
         with transaction.atomic():
-            for user, pairs in resolved:
+            for user, stimuli in resolved:
                 assignment, _ = StudyAssignment.objects.get_or_create(
                     study=study, user=user,
                 )
-                assignment.pair_stimuli.set(pairs)
+                # ``stimuli()`` picks the M2M matching the study's mode.
+                assignment.stimuli().set(stimuli)
 
         self.stdout.write(self.style.SUCCESS(
             f'Imported assignments for study "{study.name}" '
             f'(id={study.id}):'
         ))
-        for user, pairs in resolved:
-            self.stdout.write(f'  {user.username}: {len(pairs)} pairs')
+        for user, stimuli in resolved:
+            self.stdout.write(
+                f'  {user.username}: {len(stimuli)} {noun}'
+            )
         total_raters = StudyAssignment.objects.filter(study=study).count()
         self.stdout.write(
             f'Study now has {total_raters} rater assignment(s).'

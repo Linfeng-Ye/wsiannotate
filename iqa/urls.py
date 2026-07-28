@@ -74,8 +74,8 @@ urlpatterns = [
     ),
     path(
         'study/<int:study_id>/run/',
-        views.pair_local_run,
-        name='pair_local_run',
+        views.local_run,
+        name='local_run',
     ),
     path(
         'study/<int:study_id>/manifest/',
