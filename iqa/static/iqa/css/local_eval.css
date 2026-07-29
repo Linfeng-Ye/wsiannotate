@@ -236,24 +236,33 @@
      data-zoom-preview-ratio) and so scales with it.
 
    The 560px cap stops the images growing without bound on a large monitor --
-   the sources are 1024px, but they do not need to be shown at full size. */
+   the sources are 1024px, but they do not need to be shown at full size.
+
+   The 300px floor is what makes browser zoom behave. Subtracting a *fixed*
+   chrome allowance from a viewport that zoom keeps shrinking meant the
+   allowance ate an ever larger share of it: at 200% the 240px reserve is
+   most of a 385px viewport, so the image collapsed to 125px while the
+   px-sized buttons rendered twice as large -- images shrinking as buttons
+   grew. Below the floor the layout stops fitting and simply scrolls, which
+   is what zooming in should do. Extreme zoom is not really readable either
+   way, so it is not worth contorting the normal case for. */
 @media (min-width: 761px) {
     [data-local-eval].evaluation-pair.sizing-fit_screen .eval-image,
     [data-local-eval].evaluation-pair.has-zoom.sizing-fit_screen .eval-image {
         max-width: calc((100vw - 110px) / 3);
-        max-height: min(560px, calc((100svh - 212px) / 1.38));
+        max-height: clamp(300px, calc((100svh - 240px) / 1.38), 560px);
     }
 }
 
-/* The button bars are position:fixed and the budget above already reserves
-   their strip, so the tall bottom padding and full-viewport min-height are
-   double-counted here -- together they pushed the page ~6px past the
-   viewport and produced a hairline scrollbar. Local mode sizes its content
-   to fit, so it needs neither. (Scoped to the local runner; the classic
-   server-driven pages still scroll and keep both.) */
+/* The full-viewport min-height double-counted the fixed button bars against
+   the budget above and pushed the page ~6px past the viewport, producing a
+   hairline scrollbar; local mode sizes its content to fit, so it does not
+   need one. The bottom padding stays: once the image hits its floor the page
+   is meant to scroll, and without it the last of the content would sit under
+   the fixed bars instead of clearing them. */
 [data-local-eval].evaluation-pair {
     min-height: 0;
-    padding-bottom: 8px;
+    padding-bottom: 92px;
 }
 
 /* ---------- QC mode: yes/no verdict ----------
@@ -305,9 +314,11 @@
        data-zoom-preview-ratio in qc_local.html), so the pair needs 1.38x the
        image height to fit. Divide the free height by that, or the magnified
        previews get pushed under the fixed button bar and off the bottom of
-       the screen. 212px is the surrounding chrome: zoom toolbar, label,
-       wrapper padding, and the button bar's overlay zone. */
-    max-height: min(640px, calc((100svh - 212px) / 1.38));
+       the screen. 240px is the surrounding chrome: zoom toolbar, label,
+       wrapper padding, the button bar's overlay zone and the bottom padding.
+       Floor and cap as in the shared rule above: the floor keeps browser zoom
+       from collapsing the image while the px-sized buttons grow. */
+    max-height: clamp(300px, calc((100svh - 240px) / 1.38), 640px);
 }
 
 .qc-btn.active {

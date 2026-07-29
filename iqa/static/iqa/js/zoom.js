@@ -11,6 +11,13 @@
     var PREVIEW_SIDE = 240;       // fixed loupe window (clamped to the image)
     var MIN_PREVIEW_SIDE = 80;
     var MIN_LENS_SIDE = 8;        // sampled patch can get tiny at high zoom
+    // The square that follows the mouse marks where the loupe is sampling.
+    // Now that magnification is measured against raw pixels the true patch is
+    // small -- ~20px on screen at 3x -- which is hard to see and hard to aim
+    // with. Draw it at twice that size. It is deliberately no longer a literal
+    // 1:1 outline of the sampled region; it is an aiming indicator, and only
+    // the square changes -- what the preview shows is untouched.
+    var LENS_DISPLAY_SCALE = 2;
     var lastPointer = null;
 
     function factorFor(root) {
@@ -176,7 +183,7 @@
     function lensSideForPreview(previewSide, factor, img) {
         var baseSide = displayedImageBaseSide(img);
         return clampRange(
-            Math.round(previewSide / factor),
+            Math.round(previewSide / factor * LENS_DISPLAY_SCALE),
             MIN_LENS_SIDE,
             Math.min(previewSide, baseSide || previewSide)
         );
