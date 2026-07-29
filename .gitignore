@@ -35,3 +35,4 @@ output/
 
 # Local DB response backups (contain annotation data — never commit)
 responses_backup_*.json
+prod_backup_*.json

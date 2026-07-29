@@ -244,11 +244,17 @@
    reference stays on the same line as the candidate at every width. */
 .evaluation-qc .qc-layout {
     display: grid;
-    grid-template-columns: repeat(2, minmax(0, 1fr));
+    /* Size the columns to the images, not to half the viewport. With 1fr each
+       panel stretches to fill its half, so the images sit marooned in the
+       middle of two wide boxes and drift further apart the wider the window
+       gets. max-content makes each panel hug its image, and the pair is then
+       centred as a unit -- the way the magnified loupe previews sit. */
+    grid-template-columns: repeat(2, minmax(0, max-content));
     justify-content: center;
     align-items: start;
-    gap: 12px;
-    width: 100%;
+    gap: 10px;
+    width: fit-content;
+    max-width: 100%;
     margin: 0 auto 8px;
 }
 
