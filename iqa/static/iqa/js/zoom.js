@@ -127,11 +127,36 @@
         return Math.min(rect.width, rect.height);
     }
 
-    // Loupe window: a fixed comfortable size, never larger than the image.
+    // How big the loupe window should be for a given displayed image.
+    //
+    // By default it is a fixed comfortable size, which means it does *not*
+    // track the image: enlarge the image and the loupe reads as relatively
+    // smaller, shrink the image past the fixed size and the loupe collapses
+    // with it. A layout can opt into a proportional loupe instead by setting
+    // data-zoom-preview-ratio, so image and loupe scale together and their
+    // relative size stays put at every window size and browser zoom level.
+    function previewRatioFor(img) {
+        var source = img && img.closest
+            ? img.closest('[data-zoom-preview-ratio]')
+            : null;
+        if (!source) {
+            source = document.querySelector('[data-zoom-preview-ratio]');
+        }
+        var ratio = parseFloat(source && source.dataset.zoomPreviewRatio);
+        return (isFinite(ratio) && ratio > 0) ? ratio : 0;
+    }
+
+    function targetPreviewSide(img, baseSide) {
+        var ratio = previewRatioFor(img);
+        return ratio ? Math.round(baseSide * ratio) : PREVIEW_SIDE;
+    }
+
     function previewSideForImage(img) {
         var baseSide = displayedImageBaseSide(img);
         if (!baseSide) return PREVIEW_SIDE;
-        return clampRange(PREVIEW_SIDE, MIN_PREVIEW_SIDE, baseSide);
+        return clampRange(
+            targetPreviewSide(img, baseSide), MIN_PREVIEW_SIDE, baseSide
+        );
     }
 
     function previewSideForImages(images) {
@@ -139,8 +164,10 @@
             return side > 0;
         });
         if (!sides.length) return PREVIEW_SIDE;
+        // Size off the smallest image in the group so one window fits them all.
+        var smallest = Math.min.apply(null, sides);
         return clampRange(
-            PREVIEW_SIDE, MIN_PREVIEW_SIDE, Math.min.apply(null, sides)
+            targetPreviewSide(images[0], smallest), MIN_PREVIEW_SIDE, smallest
         );
     }
 

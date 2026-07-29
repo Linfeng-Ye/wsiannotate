@@ -3,12 +3,19 @@
 {% block title %}Qualification{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260728-qc3">
-<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260728-qc3">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260728-qc5">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260728-qc5">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
 {% block content %}
+{% comment %}
+data-zoom-preview-ratio sizes the loupe as a share of the displayed image
+instead of a fixed 240px, so the magnified window and the images grow and
+shrink together rather than drifting apart as the window or the browser zoom
+changes. 0.38 of a 640px image is ~240px, so the loupe looks the same as
+before at a typical laptop size -- it just tracks from there.
+{% endcomment %}
 <div class="evaluation-pair evaluation-qc has-zoom sizing-fit_screen"
      data-local-eval
      data-mode="QC"
@@ -19,6 +26,7 @@
      data-answered-url="{% url 'iqa:study_answered' study.id %}"
      data-batch-url="{% url 'iqa:evaluation_submit_batch' %}"
      data-home-url="{% url 'iqa:home' %}"
+     data-zoom-preview-ratio="0.38"
      {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
 
 {% comment %}
@@ -116,7 +124,7 @@ screen. Progress lives in a corner chip instead of its own row.
 {% block extra_js %}
 <script src="{% static 'iqa/js/protect.js' %}?v=20260712-nodl"></script>
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260712-zoomstay"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260728-qc5"></script>
 {% endif %}
-<script src="{% static 'iqa/js/local_eval.js' %}?v=20260728-qc3"></script>
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260728-qc5"></script>
 {% endblock %}

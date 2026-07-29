@@ -275,7 +275,13 @@
 [data-local-eval].evaluation-qc.has-zoom.sizing-fit_screen .qc-layout .eval-image,
 [data-local-eval].evaluation-qc.sizing-fit_screen .qc-layout .eval-image {
     max-width: calc((100vw - 90px) / 2);
-    max-height: min(640px, calc(100svh - 200px));
+    /* The loupe tray sits *below* the images and is 0.38x their side (see
+       data-zoom-preview-ratio in qc_local.html), so the pair needs 1.38x the
+       image height to fit. Divide the free height by that, or the magnified
+       previews get pushed under the fixed button bar and off the bottom of
+       the screen. 212px is the surrounding chrome: zoom toolbar, label,
+       wrapper padding, and the button bar's overlay zone. */
+    max-height: min(640px, calc((100svh - 212px) / 1.38));
 }
 
 .qc-btn.active {
