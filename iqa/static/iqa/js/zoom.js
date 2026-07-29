@@ -205,6 +205,20 @@
         images.forEach(hideImage);
     }
 
+    // Magnification is relative to the RAW image, not to however large it
+    // happens to be drawn. The displayed size changes with the window, so a
+    // factor applied to the on-screen rect meant the same "3x" revealed a
+    // different amount of real detail on every screen -- and on a small
+    // laptop a 1024px image drawn at 310px made "3x" resolve to 0.91x, i.e.
+    // below native, inspecting a downscaled image. Scaling by
+    // natural/displayed pins the factor to original pixels, so 3x is always
+    // three original pixels per CSS pixel and can never fall under 1x.
+    function rawFactorFor(img, factor, displayedWidth) {
+        var natural = img.naturalWidth;
+        if (!natural || !displayedWidth) return factor;
+        return factor * (natural / displayedWidth);
+    }
+
     function showImage(img, factor, point, previewSize) {
         var nodes = img._zoomNodes || ensureZoomNodes(img);
         if (!nodes) return;
@@ -212,6 +226,8 @@
 
         var imageRect = img.getBoundingClientRect();
         if (!imageRect.width || !imageRect.height) return;
+
+        factor = rawFactorFor(img, factor, imageRect.width);
 
         var wrapperRect = nodes.wrapper.getBoundingClientRect();
         var imageLeft = imageRect.left - wrapperRect.left;
