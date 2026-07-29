@@ -221,13 +221,39 @@
 
 /* With the title, prompt and progress row gone, the images get the rest of
    the viewport instead of a fixed 46vh slice. The width cap keeps three
-   panels on one row when the pair is short and wide. */
+   panels on one row when the pair is short and wide.
+
+   The height is derived rather than a share of the viewport, so the page
+   always fits and never scrolls. The old 88vh bound ignored the loupe tray,
+   which sits *below* the images: on a 13" laptop with 1024px source images
+   that pushed the magnified previews 89px behind the button bar and 23px off
+   the bottom of the screen. Budget:
+
+     100svh - 80px  top chrome (padding, zoom toolbar, image label)
+             - 86px  keyboard hints + fixed button bar
+             - 46px  gap above the tray, tray padding, and slack
+     divided by 1.38, because the tray is 0.38x the image side (see
+     data-zoom-preview-ratio) and so scales with it.
+
+   The 560px cap stops the images growing without bound on a large monitor --
+   the sources are 1024px, but they do not need to be shown at full size. */
 @media (min-width: 761px) {
     [data-local-eval].evaluation-pair.sizing-fit_screen .eval-image,
     [data-local-eval].evaluation-pair.has-zoom.sizing-fit_screen .eval-image {
         max-width: calc((100vw - 110px) / 3);
-        max-height: clamp(200px, calc(100svh - 196px), 88vh);
+        max-height: min(560px, calc((100svh - 212px) / 1.38));
     }
+}
+
+/* The button bars are position:fixed and the budget above already reserves
+   their strip, so the tall bottom padding and full-viewport min-height are
+   double-counted here -- together they pushed the page ~6px past the
+   viewport and produced a hairline scrollbar. Local mode sizes its content
+   to fit, so it needs neither. (Scoped to the local runner; the classic
+   server-driven pages still scroll and keep both.) */
+[data-local-eval].evaluation-pair {
+    min-height: 0;
+    padding-bottom: 8px;
 }
 
 /* ---------- QC mode: yes/no verdict ----------
