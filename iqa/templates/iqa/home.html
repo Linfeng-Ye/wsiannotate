@@ -118,12 +118,24 @@
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
             {# Local-first studies link straight to the browser-driven runner. #}
             {% if study.mode == 'QC' or study.mode == '2AFC' and study.use_local_mode %}
-            {% if card.is_completed %}
-            <button type="button" class="btn btn-primary" disabled>Completed</button>
-            {% else %}
-            <a class="btn btn-primary" href="{% url 'iqa:local_run' study.id %}">
-                {% if card.is_started %}Continue Evaluation{% else %}Start Evaluation{% endif %}
+            {% comment %}
+            A finished study stays open: the runner lands on the last trial so
+            answers can be reviewed and revised, rather than dead-ending on a
+            disabled button.
+            {% endcomment %}
+            <a class="btn{% if not card.is_completed %} btn-primary{% endif %}"
+               {% if card.is_completed %}style="border:1px solid #447e9b;color:#315f76;background:#fff;"{% endif %}
+               href="{% url 'iqa:local_run' study.id %}">
+                {% if card.is_completed %}
+                Review Answers
+                {% elif card.is_started %}
+                Continue Evaluation
+                {% else %}
+                Start Evaluation
+                {% endif %}
             </a>
+            {% if card.is_completed %}
+            <span style="color:#2c7a3f;font-size:13px;font-weight:600;">&check; Completed</span>
             {% endif %}
             {% else %}
             <form action="{% url 'iqa:next_stimulus' %}" method="post">

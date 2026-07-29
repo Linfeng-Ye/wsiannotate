@@ -706,10 +706,14 @@
                     showError('This study has no trials.');
                     return;
                 }
+                // A finished study opens on its last trial rather than a dead
+                // end, so an annotator coming back can page through what they
+                // answered and change their mind; re-submitting an answered
+                // trial is a revise, which the server accepts. The done screen
+                // is still one Submit away from the last trial.
                 var start = firstUnanswered();
-                if (start === -1) { showDone(); return; }
                 showEval();
-                renderTrial(start);
+                renderTrial(start === -1 ? trials.length - 1 : start);
             })
             .catch(function () {
                 showError('Could not load the study. Check your connection ' +

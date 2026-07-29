@@ -966,6 +966,28 @@ class QCModeTests(TestCase):
             data['answered'], {str(self.stims[2].id): 'N'},
         )
 
+    def test_completed_study_stays_open_for_review(self):
+        """A finished study must not dead-end on a disabled button.
+
+        Annotators come back to re-check their own answers, so the card keeps
+        linking into the runner (which opens on the last trial) instead of
+        going inert once every trial is answered.
+        """
+        for stimulus in self.stims:
+            QCResponse.objects.create(
+                stimulus=stimulus, user=self.user, choice='Y',
+            )
+        response = self.client.get(reverse('iqa:home'))
+        run_url = reverse('iqa:local_run', args=[self.study.id])
+        card = next(
+            c for c in response.context['study_cards']
+            if c['study'].id == self.study.id
+        )
+        self.assertTrue(card['is_completed'])
+        self.assertContains(response, f'href="{run_url}"')
+        self.assertContains(response, 'Review Answers')
+        self.assertNotContains(response, 'disabled>Completed')
+
     def test_progress_counts_qc_responses(self):
         from .samplers import get_progress
         QCResponse.objects.create(

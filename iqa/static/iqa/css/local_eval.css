@@ -237,9 +237,39 @@
    button and the image itself so the current verdict is unmistakable
    without looking away from the tissue. */
 
+/* QC shows two panels, not three, so it must not inherit the A/Ref/B grid --
+   in particular the narrow-screen rule that lifts the *second* child onto its
+   own full-width row. With only two children that second child is the image
+   itself, which stranded the reference half-width underneath it. The
+   reference stays on the same line as the candidate at every width. */
 .evaluation-qc .qc-layout {
-    /* Two panels rather than three, so let them use the full width. */
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
     justify-content: center;
+    align-items: start;
+    gap: 12px;
+    width: 100%;
+    margin: 0 auto 8px;
+}
+
+.evaluation-qc .qc-layout .image-panel:nth-child(n) {
+    grid-column: auto;
+    grid-row: auto;
+    min-width: 0;
+    max-width: none;
+}
+
+/* Cap the image in *pixels*, not viewport units, so browser zoom (cmd +/-)
+   actually changes how much fits on screen. A vh-only cap is by definition a
+   fixed share of the viewport, so it renders the same physical size at every
+   zoom level -- which is why the page could not be shrunk. The px cap binds
+   once you zoom out, so the images get physically smaller as expected; the
+   svh term still keeps them inside a short window at 100%. Specificity has to
+   clear the shared [data-local-eval] sizing rule above. */
+[data-local-eval].evaluation-qc.has-zoom.sizing-fit_screen .qc-layout .eval-image,
+[data-local-eval].evaluation-qc.sizing-fit_screen .qc-layout .eval-image {
+    max-width: calc((100vw - 90px) / 2);
+    max-height: min(640px, calc(100svh - 200px));
 }
 
 .qc-btn.active {
