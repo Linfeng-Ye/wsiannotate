@@ -40,6 +40,32 @@ and the low-latency/manual-preload modes have been removed.
 App Runner receives **no AWS access keys** — images are served by CloudFront
 and the database is Supabase, so nothing at runtime needs the AWS API.
 
+## Custom domain (`wsiannotate.com`, DNS on Cloudflare)
+
+The domain is associated with the App Runner service (`--enable-www-subdomain`),
+so App Runner terminates TLS with its own ACM certificate. Cloudflare only holds
+the DNS records:
+
+| Name | Type | Value | Proxy |
+| --- | --- | --- | --- |
+| `@` | CNAME | `draxveizjp.ap-northeast-1.awsapprunner.com` | DNS only |
+| `www` | CNAME | `draxveizjp.ap-northeast-1.awsapprunner.com` | DNS only |
+| 3× `_<hash>…` validation records | CNAME | `_<hash>.jkddzztszm.acm-validations.aws` | DNS only (required) |
+
+The ACM validation CNAMEs **must** be grey-cloud; a proxied record returns
+Cloudflare's own answer and certificate issuance never completes. Fetch the
+current record set (they are regenerated if the domain is re-associated) with:
+
+```bash
+aws apprunner describe-custom-domains --region ap-northeast-1 \
+  --service-arn arn:aws:apprunner:ap-northeast-1:143069664606:service/wsiannotate/4ea230cb207a4e3bb4f80de6e09332c1
+```
+
+Status goes `pending_certificate_dns_validation` → `active` (usually a few
+minutes after the records propagate). If you later turn the orange cloud on for
+`@`/`www`, set Cloudflare SSL mode to **Full (strict)** so it validates App
+Runner's certificate.
+
 ## Redeploy a code change
 
 Auto-deploy is on: pushing a new `:latest` to ECR triggers a rollout. Build a
@@ -59,6 +85,26 @@ The entrypoint serializes migrations with a PostgreSQL advisory lock, then runs
 gunicorn (2 workers) on port 8080. Health check: `GET /healthz` (answered before Django's Host-header
 validation by `iqa.middleware.HealthCheckMiddleware`, so App Runner's private-IP
 probe passes while `ALLOWED_HOSTS` stays strict for real traffic).
+
+## Logs
+
+Gunicorn access logs and Django warnings stream to CloudWatch, not journald
+(the systemd/laptop deployment is retired). The healthz probe runs every 3 s and
+dominates the stream, so filter it out:
+
+```bash
+aws logs start-query --region ap-northeast-1 \
+  --log-group-name /aws/apprunner/wsiannotate/4ea230cb207a4e3bb4f80de6e09332c1/application \
+  --start-time $(( $(date +%s) - 3600 )) --end-time $(date +%s) \
+  --query-string 'fields @timestamp, @message | filter @message not like "healthz" | sort @timestamp desc | limit 40'
+```
+
+`LOGGING` wires `django.security.csrf` straight to the console because Django's
+own `django` logger is gated behind `require_debug_true` — without that, a CSRF
+403 logs no reason at all under `DEBUG=False` and the access log shows only a
+bare `POST /iqa/login/ 403`. The four reasons it prints (`CSRF cookie not set`,
+`CSRF token from POST incorrect`, `Origin checking failed`, `Referer checking
+failed`) each mean something different, so read it before theorising.
 
 ## Images (S3 + CloudFront)
 
@@ -93,6 +139,23 @@ python scripts/bulk_load_supabase.py <fixture.json>        # fast bulk load a du
 study is slow and, since it is not transactional, an interruption leaves a
 partial study — run it in the background (not a short-timeout foreground
 call) and re-run cleanly if cut off.
+
+### Restarting a round
+
+Clearing responses is **not** enough: local-first mode keys its `localStorage`
+on `iqa_local_<studyId>_<userId>`, and the client only re-reconciles ids the
+server actually returns — so after a wipe an annotator still sees their old
+progress and never re-uploads or forgets it. Give the round a new study id
+instead, which orphans that local state without touching any browser:
+
+```bash
+python scripts/clone_study.py <study_id> --activate --retire-source
+```
+
+It copies the study row, every stimulus (reusing the existing `Image` rows) and
+each rater's assignment, remapped to the clone's stimuli — ~19 s for 4,000 pairs
+plus 20,000 assignment links — then deactivates the source and suffixes its name
+with `(retired)`. Responses are deliberately not copied.
 
 Manage studies and create annotator accounts via the Django admin
 (`/admin/`, using the privately shared staff account) or the

@@ -27,3 +27,34 @@
     </form>
 </div>
 {% endblock %}
+
+{% block extra_js %}
+<script>
+// Take the CSRF token from the cookie at submit time instead of trusting the
+// one rendered into this page.
+//
+// auth.login() and auth.logout() both call rotate_token(), so signing in
+// anywhere in this browser silently invalidates the token baked into any
+// *other* login page already on screen -- a second tab, or a page the browser
+// restored from a previous session. Submitting that form used to 403. The
+// cookie is always the current one, so reading it here makes a form that has
+// been sitting open submit cleanly, and the annotator never sees an error.
+//
+// This is Django's documented AJAX pattern (read `csrftoken` from the cookie),
+// not a weakening of CSRF: the guarantee comes from the same-origin policy --
+// another origin can neither read this cookie nor reach this form. Django
+// accepts the raw 32-char secret in this field, so there is no masking to do.
+// `iqa.views.csrf_failure` still covers browsers with JS off or cookies
+// blocked, where there is no cookie to read.
+(function () {
+    var form = document.querySelector('form');
+    if (!form) { return; }
+    form.addEventListener('submit', function () {
+        var match = /(?:^|;\s*)csrftoken=([^;]*)/.exec(document.cookie);
+        if (!match) { return; }
+        var field = form.querySelector('[name=csrfmiddlewaretoken]');
+        if (field) { field.value = decodeURIComponent(match[1]); }
+    });
+})();
+</script>
+{% endblock %}

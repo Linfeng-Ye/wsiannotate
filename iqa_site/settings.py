@@ -60,6 +60,10 @@ SESSION_SAVE_EVERY_REQUEST = True               # slide the window on activity
 SESSION_EXPIRE_AT_BROWSER_CLOSE = False
 CSRF_COOKIE_AGE = 60 * 60 * 24 * 60             # match the session window
 
+# A stale login form (token rotated by a login/logout in another tab) becomes
+# a retry prompt rather than a raw 403; every other path keeps Django's page.
+CSRF_FAILURE_VIEW = 'iqa.views.csrf_failure'
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -147,6 +151,18 @@ LOGGING = {
         'iqa': {
             'handlers': ['console'],
             'level': 'INFO',
+            'propagate': False,
+        },
+        # Django's own `django` logger only reaches the console behind
+        # `require_debug_true`, so with DEBUG=False the reason for a 403 is
+        # thrown away and the access log just shows a bare "POST /iqa/login/
+        # 403". Wire the CSRF logger straight to stdout so App Runner's
+        # CloudWatch stream records which check actually failed ("CSRF cookie
+        # not set", "CSRF token from POST incorrect", "Origin checking
+        # failed", ...) next time a rater hits it.
+        'django.security.csrf': {
+            'handlers': ['console'],
+            'level': 'WARNING',
             'propagate': False,
         },
     },

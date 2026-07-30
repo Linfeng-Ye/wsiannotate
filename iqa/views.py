@@ -4,6 +4,7 @@ import json
 import logging
 import random
 import string
+from urllib.parse import quote
 
 from django.db import transaction
 from django.contrib import messages
@@ -20,6 +21,8 @@ from django.urls import reverse
 from django.shortcuts import (
     get_object_or_404, redirect, render,
 )
+from django.utils.http import url_has_allowed_host_and_scheme
+from django.views.csrf import csrf_failure as default_csrf_failure
 from django.views.decorators.csrf import csrf_exempt
 from django.views.decorators.http import require_GET, require_POST
 
@@ -251,6 +254,46 @@ def _evaluation_url(study, stimulus_id):
 
 def login_redirect(request):
     return redirect('iqa:home')
+
+
+def csrf_failure(request, reason=''):
+    """Recover from a stale login token instead of dead-ending on a 403.
+
+    Both ``auth.login()`` and ``auth.logout()`` call ``rotate_token()``, so
+    logging in anywhere in a browser silently invalidates the token embedded
+    in any *other* login page already rendered -- a second tab, or a page the
+    browser restored from a previous session. Submitting that form gives
+    "CSRF token from POST incorrect", which annotators see as a raw yellow
+    403 and work around by pressing Back and retrying. Do that for them.
+
+    Only the login page is rewritten. Everything else keeps Django's default
+    403 -- in particular the local-first ``submit-batch`` endpoint, whose
+    client expects JSON and has its own retry path, so quietly redirecting it
+    would hide a real failure.
+    """
+    logger.warning(
+        'CSRF failure on %s (%s)', request.path, reason,
+    )
+    login_url = reverse('iqa:login')
+    if request.path != login_url:
+        return default_csrf_failure(request, reason=reason)
+
+    # Already signed in elsewhere: the login they were attempting is moot.
+    if request.user.is_authenticated:
+        return redirect('iqa:home')
+
+    next_url = request.GET.get('next') or request.POST.get('next')
+    if next_url and url_has_allowed_host_and_scheme(
+        next_url, allowed_hosts={request.get_host()},
+        require_https=request.is_secure(),
+    ):
+        login_url = f'{login_url}?next={quote(next_url)}'
+    messages.warning(
+        request,
+        'This page had been open a while, so we refreshed it. '
+        'Nothing was submitted — please sign in again.',
+    )
+    return redirect(login_url)
 
 
 @login_required
@@ -1275,8 +1318,24 @@ def export_study_user_csv(request, study_id, user_id):
 
 @staff_member_required
 def annotator_progress(request):
-    """Staff dashboard: every user's progress across all studies."""
-    studies = list(Study.objects.all().order_by('id'))
+    """Staff dashboard: every user's progress across the studies that matter.
+
+    Retired and never-used studies would only add columns of ``0/4000 not
+    started`` for every rater, so a study shows up while it is active or
+    actually holds answers. Deactivating a study therefore tidies the board
+    without ever hiding data that exists.
+    """
+    answered_study_ids = set()
+    for model in (PairResponse, MOSResponse, QCResponse):
+        answered_study_ids.update(
+            model.objects
+            .values_list('stimulus__study_id', flat=True)
+            .distinct()
+        )
+    studies = [
+        s for s in Study.objects.all().order_by('id')
+        if s.is_active or s.id in answered_study_ids
+    ]
     users = list(
         User.objects.filter(is_active=True).order_by('username')
     )
