@@ -282,6 +282,18 @@ class RaterLoginView(auth_views.LoginView):
         )
         return context
 
+    def form_valid(self, form):
+        response = super().form_valid(form)
+        # Name the account on the way in. One browser holds one session, so on
+        # a shared machine this is the rater's chance to notice they have
+        # landed in somebody else's login before they start answering.
+        messages.success(
+            self.request,
+            f'Welcome back, {self.request.user.username}. '
+            f'If this is not you, please sign out.',
+        )
+        return response
+
 
 def csrf_failure(request, reason=''):
     """Turn a stale login token into a retry prompt, not a dead-end 403.

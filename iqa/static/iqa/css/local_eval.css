@@ -134,6 +134,15 @@
     font-weight: 600;
 }
 
+/* Whose answers these are. Brighter than the counters beside it and split off
+   by a rule, so it reads as identity rather than another statistic. */
+.eval-progress-user {
+    padding-right: 7px;
+    margin-right: 6px;
+    border-right: 1px solid var(--line-strong);
+    color: var(--text);
+}
+
 .eval-progress-sub::before {
     content: "\00b7";
     margin: 0 4px;

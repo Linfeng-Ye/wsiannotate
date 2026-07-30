@@ -3,8 +3,8 @@
 {% block title %}2AFC Evaluation{% endblock %}
 
 {% block extra_head %}
-<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260728-qc10">
-<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260728-qc10">
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260730-user">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260730-user">
 <style>.container { max-width: none; padding: 8px 12px; }</style>
 {% endblock %}
 
@@ -27,6 +27,13 @@ space above the images costs image size on a laptop screen. Progress lives in
 a corner chip instead of its own row.
 {% endcomment %}
 <div class="eval-progress-chip">
+    {% comment %}
+    The signed-in name rides along with progress so it is in view for every
+    trial. One browser holds one session, so a rater who resumes on a machine
+    someone else was using would otherwise annotate under the wrong account
+    without ever seeing whose it is.
+    {% endcomment %}
+    <span class="eval-progress-user">{{ request.user.username }}</span>
     <span data-position>&ndash;</span>
     <span class="eval-progress-sub"><span data-answered>0</span> done</span>
 </div>
@@ -132,7 +139,7 @@ a corner chip instead of its own row.
 {% block extra_js %}
 <script src="{% static 'iqa/js/protect.js' %}?v=20260712-nodl"></script>
 {% if study.zoom_enabled %}
-<script src="{% static 'iqa/js/zoom.js' %}?v=20260728-qc10"></script>
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260730-user"></script>
 {% endif %}
-<script src="{% static 'iqa/js/local_eval.js' %}?v=20260728-qc10"></script>
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260730-user"></script>
 {% endblock %}
