@@ -3,6 +3,9 @@
 
 {% block content %}
 <h1>View Responses</h1>
+<p style="color:#555;">
+    <a href="{% url 'iqa:annotator_progress' %}">&larr; Annotator progress &amp; per-annotator exports</a>
+</p>
 
 <form method="get" style="margin-bottom:20px;">
     <label for="study_id"><strong>Study:</strong></label>
@@ -14,16 +17,66 @@
         </option>
         {% endfor %}
     </select>
+    <label for="user_id" style="margin-left:12px;"><strong>Annotator:</strong></label>
+    <select name="user_id" id="user_id" style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;">
+        <option value="">-- all annotators --</option>
+        {% for u in users %}
+        <option value="{{ u.id }}"{% if selected_user and selected_user.id == u.id %} selected{% endif %}>
+            {{ u.username }}{% if u.is_staff %} (staff){% endif %}
+        </option>
+        {% endfor %}
+    </select>
     <button type="submit" class="btn btn-primary" style="margin-left:8px;">Filter</button>
     {% if study %}
-    <a href="{% url 'iqa:export_csv' study.id %}" class="btn" style="margin-left:8px;background:#28a745;color:#fff;">
-        Export CSV
-    </a>
+        {% if selected_user %}
+        <a href="{% url 'iqa:export_study_user_csv' study.id selected_user.id %}" class="btn" style="margin-left:8px;background:#28a745;color:#fff;">
+            Export {{ selected_user.username }} · this study CSV
+        </a>
+        {% else %}
+        <a href="{% url 'iqa:export_csv' study.id %}" class="btn" style="margin-left:8px;background:#28a745;color:#fff;">
+            Export whole study CSV
+        </a>
+        {% endif %}
     {% endif %}
 </form>
 
 {% if study %}
-    {% if study.mode == 'MOS' %}
+    {% if study.mode == 'QC' %}
+    <h2>Qualification Responses for &ldquo;{{ study.name }}&rdquo;</h2>
+    {% if qc_data %}
+    <table>
+        <thead>
+            <tr>
+                <th>User</th>
+                <th>Order</th>
+                <th>Image</th>
+                <th>Reference</th>
+                <th>Qualified</th>
+                <th>Shown Image</th>
+                <th>Shown Reference</th>
+                <th>Timestamp</th>
+            </tr>
+        </thead>
+        <tbody>
+        {% for r in qc_data %}
+            <tr>
+                <td>{{ r.user.username }}</td>
+                <td>{{ r.stimulus.order }}</td>
+                <td>{{ r.stimulus.image.fname }}</td>
+                <td>{% if r.stimulus.reference %}{{ r.stimulus.reference.fname }}{% else %}&mdash;{% endif %}</td>
+                <td>{{ r.get_choice_display }}</td>
+                <td>{{ r.shown_image }}</td>
+                <td>{{ r.shown_reference }}</td>
+                <td>{{ r.timestamp|date:"Y-m-d H:i" }}</td>
+            </tr>
+        {% endfor %}
+        </tbody>
+    </table>
+    {% else %}
+    <p>No responses yet.</p>
+    {% endif %}
+
+    {% elif study.mode == 'MOS' %}
     <h2>MOS Responses for &ldquo;{{ study.name }}&rdquo;</h2>
     {% if mos_data %}
     <table>

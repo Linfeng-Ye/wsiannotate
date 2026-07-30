@@ -1,0 +1,145 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}2AFC Evaluation{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260730-user">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260730-user">
+<style>.container { max-width: none; padding: 8px 12px; }</style>
+{% endblock %}
+
+{% block content %}
+<div class="evaluation-pair has-zoom sizing-fit_screen"
+     data-local-eval
+     data-study-id="{{ study.id }}"
+     data-user-id="{{ request.user.id }}"
+     data-csrf="{{ csrf_token }}"
+     data-manifest-url="{% url 'iqa:study_manifest' study.id %}"
+     data-answered-url="{% url 'iqa:study_answered' study.id %}"
+     data-batch-url="{% url 'iqa:evaluation_submit_batch' %}"
+     data-home-url="{% url 'iqa:home' %}"
+     data-zoom-preview-ratio="0.38"
+     {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
+
+{% comment %}
+No title/prompt row: annotators know the task, and every pixel of vertical
+space above the images costs image size on a laptop screen. Progress lives in
+a corner chip instead of its own row.
+{% endcomment %}
+<div class="eval-progress-chip">
+    {% comment %}
+    The signed-in name rides along with progress so it is in view for every
+    trial. One browser holds one session, so a rater who resumes on a machine
+    someone else was using would otherwise annotate under the wrong account
+    without ever seeing whose it is.
+    {% endcomment %}
+    <span class="eval-progress-user">{{ request.user.username }}</span>
+    <span data-position>&ndash;</span>
+    <span class="eval-progress-sub"><span data-answered>0</span> done</span>
+</div>
+
+{% if study.zoom_enabled %}
+<div class="image-toolbar" data-toolbar style="display:none;">
+    <label class="zoom-field-control">
+        <span>Zoom</span>
+        <span class="zoom-field-slider"
+              role="slider"
+              tabindex="0"
+              aria-label="Zoom magnification"
+              aria-valuemin="1.5"
+              aria-valuemax="6"
+              aria-valuenow="{{ study.zoom_factor|floatformat:'-1' }}"
+              data-zoom-field-slider
+              data-min="1.5"
+              data-max="6"
+              data-step="0.5"
+              data-value="{{ study.zoom_factor|floatformat:'-1' }}">
+            <span class="zoom-field-track">
+                <span class="zoom-field-fill"></span>
+                <span class="zoom-field-thumb"></span>
+            </span>
+        </span>
+        <output class="zoom-field-output" data-zoom-field-output>{{ study.zoom_factor|floatformat:'-1' }}×</output>
+    </label>
+</div>
+{% endif %}
+
+<div class="pair-shared-ref-layout" data-images style="display:none;">
+    <div class="image-panel">
+        <div class="image-label">Image A</div>
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="A"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image A">
+            <img alt="Image A" class="eval-image"
+                 data-img="a"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image A">
+        </div>
+    </div>
+    <div class="image-panel">
+        <div class="image-label">Reference</div>
+        <div class="image-wrapper">
+            <img alt="Reference image" class="eval-image"
+                 data-img="ref"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Reference">
+        </div>
+    </div>
+    <div class="image-panel">
+        <div class="image-label">Image B</div>
+        <div class="image-wrapper choice-image-wrapper"
+             data-image-choice="B"
+             role="button"
+             tabindex="0"
+             aria-label="Choose Image B">
+            <img alt="Image B" class="eval-image"
+                 data-img="b"
+                 data-sync-zoom-group="pair-main"
+                 data-zoom-label="Image B">
+        </div>
+    </div>
+</div>
+
+<div class="local-status" data-status role="status" aria-live="polite">
+    Loading study&hellip;
+</div>
+
+<div class="local-done" data-done style="display:none;"></div>
+
+<div class="local-image-warning" data-image-warning style="display:none;">
+    Images couldn&rsquo;t load &mdash; check your connection.
+    Your saved answers are safe.
+</div>
+
+<div class="pair-choices pair-choices-centered" data-choices style="display:none;">
+    <button type="button" class="btn pair-btn pair-btn-a" data-choice="A">Image A</button>
+    <button type="button" class="btn pair-btn pair-btn-b" data-choice="B">Image B</button>
+</div>
+
+<div class="submit-section" data-controls style="display:none;">
+    <button type="button" class="btn previous-btn" data-previous disabled>Previous</button>
+    <button type="button" class="btn next-btn" data-next disabled>Next</button>
+    <button type="button" class="btn quit-btn" data-quit>Quit</button>
+    <button type="button" class="btn btn-primary submit-btn" data-submit disabled>Submit</button>
+</div>
+
+<div class="kbd-hints" data-hints style="display:none;">
+    <span class="kbd-hint"><kbd>a</kbd> Image&nbsp;A</span>
+    <span class="kbd-hint"><kbd>d</kbd>/<kbd>b</kbd> Image&nbsp;B</span>
+    <span class="kbd-hint"><kbd>&larr;</kbd> Previous</span>
+    <span class="kbd-hint"><kbd>&rarr;</kbd> Next</span>
+    <span class="kbd-hint"><kbd>s</kbd>/<kbd>enter</kbd> Submit</span>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'iqa/js/protect.js' %}?v=20260712-nodl"></script>
+{% if study.zoom_enabled %}
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260730-user"></script>
+{% endif %}
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260730-user"></script>
+{% endblock %}

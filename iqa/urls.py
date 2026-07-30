@@ -12,10 +12,7 @@ urlpatterns = [
     path('home/', views.home, name='home'),
     path(
         'login/',
-        auth_views.LoginView.as_view(
-            template_name='iqa/login.html',
-            redirect_authenticated_user=True,
-        ),
+        views.RaterLoginView.as_view(),
         name='login',
     ),
     path(
@@ -41,24 +38,14 @@ urlpatterns = [
         name='study_done',
     ),
     path(
-        'study/<int:study_id>/local-assignment/',
-        views.local_assignment,
-        name='local_assignment',
+        'study/<int:study_id>/prefetch/',
+        views.prefetch,
+        name='prefetch',
     ),
     path(
-        'study/<int:study_id>/local/',
-        views.local_annotation,
-        name='local_annotation',
-    ),
-    path(
-        'study/<int:study_id>/preload-manifest/',
-        views.preload_manifest,
-        name='preload_manifest',
-    ),
-    path(
-        'preload-sw.js',
-        views.preload_service_worker,
-        name='preload_service_worker',
+        'prefetch-report/',
+        views.prefetch_report,
+        name='prefetch_report',
     ),
     path(
         'evaluate/mos/<int:study_id>/'
@@ -78,6 +65,26 @@ urlpatterns = [
         name='evaluation_submit',
     ),
     path(
+        'submit-batch/',
+        views.evaluation_submit_batch,
+        name='evaluation_submit_batch',
+    ),
+    path(
+        'study/<int:study_id>/run/',
+        views.local_run,
+        name='local_run',
+    ),
+    path(
+        'study/<int:study_id>/manifest/',
+        views.study_manifest,
+        name='study_manifest',
+    ),
+    path(
+        'study/<int:study_id>/answered/',
+        views.study_answered,
+        name='study_answered',
+    ),
+    path(
         'bulk-create-users/',
         views.bulk_create_users,
         name='bulk_create_users',
@@ -88,14 +95,29 @@ urlpatterns = [
         name='user_creation_results',
     ),
     path(
+        'annotators/',
+        views.annotator_progress,
+        name='annotator_progress',
+    ),
+    path(
         'responses/',
         views.view_responses,
         name='view_responses',
     ),
     path(
+        'responses/export-user/<int:user_id>/',
+        views.export_user_responses_csv,
+        name='export_user_csv',
+    ),
+    path(
         'responses/export/<int:study_id>/',
         views.export_responses_csv,
         name='export_csv',
+    ),
+    path(
+        'responses/export/<int:study_id>/user/<int:user_id>/',
+        views.export_study_user_csv,
+        name='export_study_user_csv',
     ),
     path(
         'responses/export-own/<int:study_id>/',

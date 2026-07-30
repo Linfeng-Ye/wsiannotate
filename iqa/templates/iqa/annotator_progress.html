@@ -1,0 +1,84 @@
+{% extends "base.html" %}
+{% block title %}Annotator Progress{% endblock %}
+
+{% block content %}
+<div class="container">
+<h1>Annotator Progress</h1>
+<p style="color:#555;">
+    {{ rows|length }} user{{ rows|length|pluralize }} ·
+    <a href="{% url 'iqa:view_responses' %}">View responses</a> ·
+    <a href="{% url 'iqa:home' %}">Home</a>
+</p>
+
+<table>
+    <thead>
+        <tr>
+            <th>Annotator</th>
+            {% for s in studies %}
+            <th>{{ s.name }}<br>
+                <span style="font-weight:normal;color:#888;font-size:12px;">
+                    {{ s.get_mode_display }}{% if not s.is_active %} · inactive{% endif %}
+                </span>
+            </th>
+            {% endfor %}
+            <th>Last activity</th>
+            <th>Export</th>
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in rows %}
+        <tr>
+            <td>
+                <strong>{{ row.user.username }}</strong>
+                {% if row.user.is_staff %}
+                <span style="font-size:11px;color:#999;">(staff)</span>
+                {% endif %}
+            </td>
+            {% for cell in row.cells %}
+            <td>
+                {% if cell.total == 0 %}
+                <span style="color:#bbb;">—</span>
+                {% else %}
+                <div style="display:flex;align-items:center;gap:8px;">
+                    <div style="flex:1;min-width:70px;background:#eee;border-radius:6px;height:10px;overflow:hidden;">
+                        <div style="width:{{ cell.pct }}%;height:10px;background:{% if cell.completed %}#28a745{% elif cell.started %}#447e9b{% else %}#ccc{% endif %};"></div>
+                    </div>
+                    <span style="font-size:12px;white-space:nowrap;">
+                        {{ cell.done }}/{{ cell.total }}
+                    </span>
+                </div>
+                <div style="display:flex;align-items:center;justify-content:space-between;margin-top:2px;">
+                    <span style="font-size:11px;color:#888;">
+                        {% if cell.completed %}completed{% elif cell.started %}in progress{% else %}not started{% endif %}
+                    </span>
+                    {% if cell.started %}
+                    <a href="{% url 'iqa:export_study_user_csv' cell.study.id row.user.id %}"
+                       title="Download {{ row.user.username }} · {{ cell.study.name }}"
+                       style="font-size:11px;color:#28a745;text-decoration:none;white-space:nowrap;">
+                        ⬇ CSV
+                    </a>
+                    {% endif %}
+                </div>
+                {% endif %}
+            </td>
+            {% endfor %}
+            <td style="font-size:12px;color:#555;white-space:nowrap;">
+                {% if row.last_activity %}{{ row.last_activity|date:"Y-m-d H:i" }}{% else %}<span style="color:#bbb;">never</span>{% endif %}
+            </td>
+            <td>
+                {% if row.overall_done %}
+                <a href="{% url 'iqa:export_user_csv' row.user.id %}"
+                   class="btn" style="background:#28a745;color:#fff;padding:5px 12px;font-size:13px;"
+                   title="All studies for {{ row.user.username }}">
+                    All CSV
+                </a>
+                {% else %}
+                <span style="color:#bbb;font-size:12px;">no data</span>
+                {% endif %}
+            </td>
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
+</div>
+{% endblock %}

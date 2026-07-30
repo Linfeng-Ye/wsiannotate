@@ -1,0 +1,131 @@
+{% extends "base.html" %}
+{% load static %}
+{% block title %}Qualification{% endblock %}
+
+{% block extra_head %}
+<link rel="stylesheet" href="{% static 'iqa/css/evaluation.css' %}?v=20260730-user">
+<link rel="stylesheet" href="{% static 'iqa/css/local_eval.css' %}?v=20260730-user">
+<style>.container { max-width: none; padding: 8px 12px; }</style>
+{% endblock %}
+
+{% block content %}
+{% comment %}
+data-zoom-preview-ratio sizes the loupe as a share of the displayed image
+instead of a fixed 240px, so the magnified window and the images grow and
+shrink together rather than drifting apart as the window or the browser zoom
+changes. 0.38 of a 640px image is ~240px, so the loupe looks the same as
+before at a typical laptop size -- it just tracks from there.
+{% endcomment %}
+<div class="evaluation-pair evaluation-qc has-zoom sizing-fit_screen"
+     data-local-eval
+     data-mode="QC"
+     data-study-id="{{ study.id }}"
+     data-user-id="{{ request.user.id }}"
+     data-csrf="{{ csrf_token }}"
+     data-manifest-url="{% url 'iqa:study_manifest' study.id %}"
+     data-answered-url="{% url 'iqa:study_answered' study.id %}"
+     data-batch-url="{% url 'iqa:evaluation_submit_batch' %}"
+     data-home-url="{% url 'iqa:home' %}"
+     data-zoom-preview-ratio="0.38"
+     {% if study.zoom_enabled %}data-zoom-factor="{{ study.zoom_factor }}"{% endif %}>
+
+{% comment %}
+No title/prompt row, matching the 2AFC runner: annotators know the task, and
+every pixel of vertical space above the images costs image size on a laptop
+screen. Progress lives in a corner chip instead of its own row.
+{% endcomment %}
+<div class="eval-progress-chip">
+    <span class="eval-progress-user">{{ request.user.username }}</span>
+    <span data-position>&ndash;</span>
+    <span class="eval-progress-sub"><span data-answered>0</span> done</span>
+</div>
+
+{% if study.zoom_enabled %}
+<div class="image-toolbar" data-toolbar style="display:none;">
+    <label class="zoom-field-control">
+        <span>Zoom</span>
+        <span class="zoom-field-slider"
+              role="slider"
+              tabindex="0"
+              aria-label="Zoom magnification"
+              aria-valuemin="1.5"
+              aria-valuemax="6"
+              aria-valuenow="{{ study.zoom_factor|floatformat:'-1' }}"
+              data-zoom-field-slider
+              data-min="1.5"
+              data-max="6"
+              data-step="0.5"
+              data-value="{{ study.zoom_factor|floatformat:'-1' }}">
+            <span class="zoom-field-track">
+                <span class="zoom-field-fill"></span>
+                <span class="zoom-field-thumb"></span>
+            </span>
+        </span>
+        <output class="zoom-field-output" data-zoom-field-output>{{ study.zoom_factor|floatformat:'-1' }}×</output>
+    </label>
+</div>
+{% endif %}
+
+<div class="pair-shared-ref-layout qc-layout" data-images style="display:none;">
+    <div class="image-panel">
+        <div class="image-label">Reference</div>
+        <div class="image-wrapper">
+            <img alt="Reference image" class="eval-image"
+                 data-img="ref"
+                 data-sync-zoom-group="qc-main"
+                 data-zoom-label="Reference">
+        </div>
+    </div>
+    <div class="image-panel">
+        <div class="image-label">Image</div>
+        {# The verdict tints this wrapper red (No) or green (Yes). #}
+        <div class="image-wrapper qc-verdict-wrapper" data-verdict-target>
+            <img alt="Image under review" class="eval-image"
+                 data-img="img"
+                 data-sync-zoom-group="qc-main"
+                 data-zoom-label="Image">
+        </div>
+    </div>
+</div>
+
+<div class="local-status" data-status role="status" aria-live="polite">
+    Loading study&hellip;
+</div>
+
+<div class="local-done" data-done style="display:none;"></div>
+
+<div class="local-image-warning" data-image-warning style="display:none;">
+    Images couldn&rsquo;t load &mdash; check your connection.
+    Your saved answers are safe.
+</div>
+
+<div class="pair-choices pair-choices-centered" data-choices style="display:none;">
+    <button type="button" class="btn pair-btn qc-btn qc-btn-no" data-choice="N">No</button>
+    <button type="button" class="btn pair-btn qc-btn qc-btn-yes" data-choice="Y">Yes</button>
+</div>
+
+<div class="submit-section" data-controls style="display:none;">
+    <button type="button" class="btn previous-btn" data-previous disabled>Previous</button>
+    <button type="button" class="btn next-btn" data-next disabled>Next</button>
+    <button type="button" class="btn quit-btn" data-quit>Quit</button>
+    <button type="button" class="btn btn-primary submit-btn" data-submit disabled>Submit</button>
+</div>
+
+<div class="kbd-hints" data-hints style="display:none;">
+    <span class="kbd-hint"><kbd>a</kbd> No</span>
+    <span class="kbd-hint"><kbd>d</kbd> Yes</span>
+    <span class="kbd-hint"><kbd>&larr;</kbd> Previous</span>
+    <span class="kbd-hint"><kbd>&rarr;</kbd> Next</span>
+    <span class="kbd-hint"><kbd>s</kbd>/<kbd>enter</kbd> Submit</span>
+</div>
+
+</div>
+{% endblock %}
+
+{% block extra_js %}
+<script src="{% static 'iqa/js/protect.js' %}?v=20260712-nodl"></script>
+{% if study.zoom_enabled %}
+<script src="{% static 'iqa/js/zoom.js' %}?v=20260730-user"></script>
+{% endif %}
+<script src="{% static 'iqa/js/local_eval.js' %}?v=20260730-user"></script>
+{% endblock %}

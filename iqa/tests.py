@@ -1,0 +1,1155 @@
+import json
+
+from django.contrib.auth.models import User
+from django.test import SimpleTestCase, TestCase, override_settings
+from django.urls import NoReverseMatch, reverse
+
+from .models import (
+    Image, Study, MOSStimulus, PairStimulus, QCStimulus,
+    MOSResponse, PairResponse, QCResponse,
+)
+from .samplers import (
+    get_next_stimulus, get_upcoming_stimuli, ordered_stimuli,
+)
+
+
+class OverwriteResubmitTests(TestCase):
+    """Previous + resubmit must update the existing row, never duplicate."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('ann01', password='x')
+        self.client.force_login(self.user)
+        self.img_a = Image.objects.create(fname='images/a.png', name='a')
+        self.img_b = Image.objects.create(fname='images/b.png', name='b')
+
+    def test_mos_resubmit_overwrites(self):
+        study = Study.objects.create(
+            name='m', mode=Study.MODE_MOS, is_active=True,
+            scale_min=1, scale_max=5,
+        )
+        stim = MOSStimulus.objects.create(study=study, image=self.img_a)
+
+        self.client.post(reverse('iqa:evaluation_submit'), {
+            'study_id': study.id, 'stimulus_id': stim.id, 'score': '2',
+        }, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.client.post(reverse('iqa:evaluation_submit'), {
+            'study_id': study.id, 'stimulus_id': stim.id, 'score': '5',
+        }, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+        responses = MOSResponse.objects.filter(stimulus=stim, user=self.user)
+        self.assertEqual(responses.count(), 1)
+        self.assertEqual(responses.first().score, 5)
+
+    def test_pair_resubmit_overwrites(self):
+        study = Study.objects.create(
+            name='p', mode=Study.MODE_2AFC, is_active=True,
+        )
+        stim = PairStimulus.objects.create(
+            study=study, image_a=self.img_a, image_b=self.img_b,
+        )
+
+        self.client.post(reverse('iqa:evaluation_submit'), {
+            'study_id': study.id, 'stimulus_id': stim.id, 'choice': 'A',
+        }, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+        self.client.post(reverse('iqa:evaluation_submit'), {
+            'study_id': study.id, 'stimulus_id': stim.id, 'choice': 'B',
+        }, HTTP_X_REQUESTED_WITH='XMLHttpRequest')
+
+        responses = PairResponse.objects.filter(stimulus=stim, user=self.user)
+        self.assertEqual(responses.count(), 1)
+        self.assertEqual(responses.first().choice, 'B')
+
+
+class SamplerAndPrefetchTests(TestCase):
+    def setUp(self):
+        self.user = User.objects.create_user('ann02', password='x')
+        self.client.force_login(self.user)
+        self.study = Study.objects.create(
+            name='s', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_RANDOM,
+        )
+        self.imgs = [
+            Image.objects.create(fname=f'images/{i}.png', name=str(i))
+            for i in range(12)
+        ]
+        for i in range(10):
+            PairStimulus.objects.create(
+                study=self.study, image_a=self.imgs[i],
+                image_b=self.imgs[i + 1], order=i,
+            )
+
+    def test_random_order_is_deterministic_per_user(self):
+        order1 = [s.id for s in ordered_stimuli(self.study, self.user)]
+        order2 = [s.id for s in ordered_stimuli(self.study, self.user)]
+        self.assertEqual(order1, order2)
+
+    def test_upcoming_follows_next_and_excludes_answered(self):
+        first = get_next_stimulus(self.study, self.user)
+        upcoming = get_upcoming_stimuli(
+            self.study, self.user, first.id, 8,
+        )
+        self.assertNotIn(first.id, [s.id for s in upcoming])
+        self.assertLessEqual(len(upcoming), 8)
+        # The first upcoming stimulus is the one served after `first`.
+        full = [s.id for s in ordered_stimuli(self.study, self.user)]
+        self.assertEqual(upcoming[0].id, full[full.index(first.id) + 1])
+
+    def test_prefetch_endpoint_returns_image_urls(self):
+        first = get_next_stimulus(self.study, self.user)
+        resp = self.client.get(
+            reverse('iqa:prefetch', args=[self.study.id]),
+            {'current': first.id},
+        )
+        self.assertEqual(resp.status_code, 200)
+        images = resp.json()['images']
+        self.assertTrue(images)
+        self.assertTrue(all(u.startswith('http') for u in images))
+        self.assertEqual(
+            self.client.post(
+                reverse('iqa:prefetch', args=[self.study.id]),
+            ).status_code,
+            405,
+        )
+
+    def test_prefetch_returns_complete_shared_reference_window(self):
+        study = Study.objects.create(
+            name='window', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_SEQUENTIAL,
+        )
+        stimuli = []
+        for i in range(9):
+            image_a = Image.objects.create(
+                fname=f'images/window/{i}_a.png', name=f'{i}_a',
+            )
+            image_b = Image.objects.create(
+                fname=f'images/window/{i}_b.png', name=f'{i}_b',
+            )
+            reference = Image.objects.create(
+                fname=f'images/window/{i}_ref.png', name=f'{i}_ref',
+            )
+            stimuli.append(PairStimulus.objects.create(
+                study=study, image_a=image_a, image_b=image_b,
+                reference_a=reference, reference_b=reference, order=i,
+            ))
+
+        response = self.client.get(
+            reverse('iqa:prefetch', args=[study.id]),
+            {'current': stimuli[0].id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        images = response.json()['images']
+        self.assertEqual(len(images), 24)
+        self.assertEqual(len(set(images)), 24)
+        self.assertTrue(images[0].endswith('/1_ref.png'))
+        self.assertTrue(images[-1].endswith('/8_b.png'))
+
+    def test_prefetch_caps_distinct_reference_trials_at_24_images(self):
+        study = Study.objects.create(
+            name='distinct', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_SEQUENTIAL,
+        )
+        stimuli = []
+        for i in range(9):
+            images = [
+                Image.objects.create(
+                    fname=f'images/distinct/{i}_{part}.png',
+                    name=f'{i}_{part}',
+                )
+                for part in ('a', 'b', 'ra', 'rb')
+            ]
+            stimuli.append(PairStimulus.objects.create(
+                study=study, image_a=images[0], image_b=images[1],
+                reference_a=images[2], reference_b=images[3], order=i,
+            ))
+
+        response = self.client.get(
+            reverse('iqa:prefetch', args=[study.id]),
+            {'current': stimuli[0].id},
+        )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(len(response.json()['images']), 24)
+
+    def test_prefetch_rejects_inactive_study_and_anonymous_user(self):
+        first = get_next_stimulus(self.study, self.user)
+        self.study.is_active = False
+        self.study.save(update_fields=['is_active'])
+
+        response = self.client.get(
+            reverse('iqa:prefetch', args=[self.study.id]),
+            {'current': first.id},
+        )
+        self.assertEqual(response.status_code, 404)
+
+        self.client.logout()
+        response = self.client.get(
+            reverse('iqa:prefetch', args=[self.study.id]),
+            {'current': first.id},
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_prefetch_report_is_post_only_and_tolerates_bad_json(self):
+        url = reverse('iqa:prefetch_report')
+        self.assertEqual(self.client.get(url).status_code, 405)
+        response = self.client.post(
+            url, data=b'{not-json', content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 204)
+
+        self.client.logout()
+        response = self.client.post(
+            url, data=b'{}', content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 302)
+
+    def test_prefetch_report_tolerates_non_object_and_large_payloads(self):
+        url = reverse('iqa:prefetch_report')
+        response = self.client.post(
+            url, data=b'[]', content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 204)
+        response = self.client.post(
+            url, data=b'x' * 2049, content_type='application/json',
+        )
+        self.assertEqual(response.status_code, 204)
+
+    def test_all_answered_has_no_next_stimulus(self):
+        for stimulus in self.study.pair_stimuli.all():
+            PairResponse.objects.create(
+                stimulus=stimulus, user=self.user, choice='A',
+            )
+        self.assertIsNone(get_next_stimulus(self.study, self.user))
+        self.assertEqual(
+            get_upcoming_stimuli(self.study, self.user, None, 8), [],
+        )
+
+    def test_mos_upcoming_skips_answered_with_invalid_current(self):
+        study = Study.objects.create(
+            name='mos', mode=Study.MODE_MOS, is_active=True,
+            sampler=Study.SAMPLER_SEQUENTIAL,
+        )
+        stimuli = [
+            MOSStimulus.objects.create(
+                study=study, image=self.imgs[i], order=i,
+            )
+            for i in range(3)
+        ]
+        MOSResponse.objects.create(
+            stimulus=stimuli[0], user=self.user, score=3,
+        )
+
+        upcoming = get_upcoming_stimuli(study, self.user, 999999, 8)
+
+        self.assertEqual([item.id for item in upcoming], [
+            stimuli[1].id, stimuli[2].id,
+        ])
+
+    def test_least_evaluated_orders_unanswered_stimulus_first(self):
+        study = Study.objects.create(
+            name='least', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_LEAST_EVAL,
+        )
+        first = PairStimulus.objects.create(
+            study=study, image_a=self.imgs[0], image_b=self.imgs[1],
+            order=0,
+        )
+        second = PairStimulus.objects.create(
+            study=study, image_a=self.imgs[2], image_b=self.imgs[3],
+            order=1,
+        )
+        other = User.objects.create_user('other', password='x')
+        PairResponse.objects.create(
+            stimulus=first, user=other, choice='A',
+        )
+
+        order = ordered_stimuli(study, self.user)
+
+        self.assertEqual([item.id for item in order], [second.id, first.id])
+
+    def test_previous_fallback_uses_the_user_sampler_order(self):
+        order = ordered_stimuli(self.study, self.user)
+        current = order[3]
+        expected_previous = order[2]
+        for stimulus in order[:3]:
+            PairResponse.objects.create(
+                stimulus=stimulus, user=self.user, choice='A',
+            )
+
+        response = self.client.post(reverse('iqa:previous_stimulus'), {
+            'study_id': self.study.id,
+            'stimulus_id': current.id,
+        })
+
+        self.assertRedirects(
+            response,
+            reverse('iqa:pair_evaluation', kwargs={
+                'study_id': self.study.id,
+                'stimulus_id': expected_previous.id,
+            }),
+            fetch_redirect_response=False,
+        )
+
+    def test_removed_routes_are_gone(self):
+        for name in [
+            'local_annotation', 'local_assignment',
+            'preload_manifest', 'preload_service_worker',
+        ]:
+            with self.assertRaises(NoReverseMatch):
+                reverse(f'iqa:{name}', args=[self.study.id])
+
+
+class StaffDashboardTests(TestCase):
+    def setUp(self):
+        self.staff = User.objects.create_user(
+            'boss', password='x', is_staff=True,
+        )
+        self.ann = User.objects.create_user('worker', password='x')
+        self.img = Image.objects.create(fname='images/x.png', name='x')
+        self.study = Study.objects.create(
+            name='S', mode=Study.MODE_2AFC, is_active=True,
+        )
+        self.stim = PairStimulus.objects.create(
+            study=self.study, image_a=self.img, image_b=self.img,
+        )
+        PairResponse.objects.create(
+            stimulus=self.stim, user=self.ann, choice='A',
+        )
+
+    def test_progress_requires_staff(self):
+        self.client.force_login(self.ann)
+        r = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertIn(r.status_code, (302, 403))
+
+    def test_progress_lists_users_and_counts(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'worker')
+        self.assertContains(r, '1/1')  # done/total for the answered study
+
+    def test_per_user_export(self):
+        self.client.force_login(self.staff)
+        r = self.client.get(
+            reverse('iqa:export_user_csv', args=[self.ann.id])
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r['Content-Type'], 'text/csv')
+        body = r.content.decode().splitlines()
+        self.assertEqual(len(body), 2)  # header + 1 response
+        self.assertIn('worker_responses.csv', r['Content-Disposition'])
+
+    def test_per_user_export_requires_staff(self):
+        url = reverse('iqa:export_user_csv', args=[self.ann.id])
+        self.client.force_login(self.ann)
+        self.assertIn(self.client.get(url).status_code, (302, 403))
+        self.client.logout()
+        self.assertEqual(self.client.get(url).status_code, 302)
+
+    def test_study_user_export_is_scoped(self):
+        # a second annotator with a response in the same study
+        other = User.objects.create_user('worker2', password='x')
+        PairResponse.objects.create(
+            stimulus=self.stim, user=other, choice='B',
+        )
+        self.client.force_login(self.staff)
+        r = self.client.get(reverse(
+            'iqa:export_study_user_csv', args=[self.study.id, self.ann.id],
+        ))
+        self.assertEqual(r.status_code, 200)
+        body = r.content.decode().splitlines()
+        self.assertEqual(len(body), 2)          # header + only worker's row
+        self.assertIn('worker', body[1])
+        self.assertNotIn('worker2', r.content.decode())
+        self.assertIn('S_worker_responses.csv', r['Content-Disposition'])
+
+    def test_study_user_export_requires_staff(self):
+        url = reverse(
+            'iqa:export_study_user_csv', args=[self.study.id, self.ann.id],
+        )
+        self.client.force_login(self.ann)
+        self.assertIn(self.client.get(url).status_code, (302, 403))
+
+    def test_view_responses_filters_by_user(self):
+        other = User.objects.create_user('worker2', password='x')
+        PairResponse.objects.create(
+            stimulus=self.stim, user=other, choice='B',
+        )
+        self.client.force_login(self.staff)
+        r = self.client.get(
+            reverse('iqa:view_responses'),
+            {'study_id': self.study.id, 'user_id': self.ann.id},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(len(r.context['pair_data']), 1)
+        self.assertEqual(r.context['selected_user'], self.ann)
+
+    def test_progress_and_export_include_mos_responses(self):
+        mos_study = Study.objects.create(
+            name='MOS study', mode=Study.MODE_MOS, is_active=True,
+        )
+        mos_stimulus = MOSStimulus.objects.create(
+            study=mos_study, image=self.img,
+        )
+        MOSResponse.objects.create(
+            stimulus=mos_stimulus, user=self.ann, score=4,
+        )
+        self.client.force_login(self.staff)
+
+        progress = self.client.get(reverse('iqa:annotator_progress'))
+        export = self.client.get(
+            reverse('iqa:export_user_csv', args=[self.ann.id])
+        )
+
+        self.assertEqual(progress.status_code, 200)
+        self.assertContains(progress, 'MOS study')
+        rows = export.content.decode().splitlines()
+        self.assertEqual(len(rows), 3)  # header + pair + MOS
+        self.assertTrue(any('MOS study,MOS' in row for row in rows))
+
+    def test_export_escapes_spreadsheet_formulas(self):
+        self.study.name = '\t=DANGEROUS()'
+        self.study.save(update_fields=['name'])
+        self.client.force_login(self.staff)
+
+        response = self.client.get(
+            reverse('iqa:export_user_csv', args=[self.ann.id])
+        )
+
+        self.assertContains(response, "'\t=DANGEROUS()")
+
+
+class LocalModeTests(TestCase):
+    """Local-first 2AFC: manifest, deterministic swap, idempotent batch."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('local01', password='x')
+        self.client.force_login(self.user)
+        self.study = Study.objects.create(
+            name='L', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_RANDOM,
+            pair_shared_ref_layout=True, use_local_mode=True,
+        )
+        self.stims = []
+        for i in range(4):
+            a = Image.objects.create(fname=f'images/l{i}_a.png')
+            b = Image.objects.create(fname=f'images/l{i}_b.png')
+            ref = Image.objects.create(fname=f'images/l{i}_ref.png')
+            self.stims.append(PairStimulus.objects.create(
+                study=self.study, image_a=a, image_b=b,
+                reference_a=ref, reference_b=ref, order=i,
+            ))
+
+    def _manifest(self):
+        return self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+
+    def test_manifest_lists_trials_urls_and_answered(self):
+        PairResponse.objects.create(
+            stimulus=self.stims[0], user=self.user,
+            choice='A', display_choice='A',
+        )
+        data = self._manifest()
+        self.assertEqual(data['total'], 4)
+        self.assertEqual(len(data['trials']), 4)
+        t0 = data['trials'][0]
+        self.assertIn('swap', t0)
+        self.assertTrue(t0['img_a'].startswith('http'))
+        self.assertTrue(t0['img_b'].startswith('http'))
+        self.assertTrue(t0['ref'].startswith('http'))
+        self.assertEqual(data['answered'].get(str(self.stims[0].id)), 'A')
+
+    def test_manifest_order_matches_sampler(self):
+        ids = [t['id'] for t in self._manifest()['trials']]
+        expected = [s.id for s in ordered_stimuli(self.study, self.user)]
+        self.assertEqual(ids, expected)
+
+    def test_swap_is_deterministic_and_selects_the_shown_image(self):
+        first = self._manifest()['trials']
+        second = self._manifest()['trials']
+        self.assertEqual(
+            [t['swap'] for t in first], [t['swap'] for t in second],
+        )
+        by_id = {s.id: s for s in self.stims}
+        for t in first:
+            stim = by_id[t['id']]
+            shown_a = t['img_a'].rsplit('/', 1)[-1]
+            expected = (stim.image_b if t['swap'] else stim.image_a)
+            self.assertEqual(
+                shown_a, str(expected.fname).rsplit('/', 1)[-1],
+            )
+
+    def test_batch_revise_updates_in_place_without_duplicating(self):
+        url = reverse('iqa:evaluation_submit_batch')
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A', 'swap': False},
+                {'stimulus_id': self.stims[1].id, 'choice': 'B', 'swap': True},
+            ]}), content_type='application/json')
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['saved'], 2)
+
+        # A deliberate revise updates in place, never duplicates.
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': True},
+            ]}), content_type='application/json')
+        rows = PairResponse.objects.filter(
+            user=self.user, stimulus__study=self.study,
+        )
+        self.assertEqual(rows.count(), 2)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'B',
+        )
+        swapped = PairResponse.objects.get(
+            stimulus=self.stims[1], user=self.user,
+        )
+        self.assertEqual(swapped.display_choice, 'B')
+        self.assertEqual(swapped.choice, 'A')   # display B + swap -> A
+        self.assertTrue(swapped.was_swapped)
+
+    def test_forward_answer_never_overwrites_existing(self):
+        """A stale device must not clobber an answer made elsewhere."""
+        url = reverse('iqa:evaluation_submit_batch')
+        # Device 1 answers the pair (forward).
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+
+        # Stale device 2 forward-answers the same pair differently -> KEEP 'A'.
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+        self.assertEqual(r.json()['saved'], 0)
+        self.assertEqual(r.json()['kept'], 1)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'A',
+        )
+
+        # A deliberate revise IS allowed to overwrite.
+        r = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': True},
+            ]}), content_type='application/json')
+        self.assertEqual(r.json()['saved'], 1)
+        self.assertEqual(
+            PairResponse.objects.get(
+                stimulus=self.stims[0], user=self.user,
+            ).display_choice, 'B',
+        )
+
+    def test_kept_write_returns_answered_set_for_client_catchup(self):
+        url = reverse('iqa:evaluation_submit_batch')
+        self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+                {'stimulus_id': self.stims[1].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json')
+
+        # A stale forward write is kept -> response hands back the true state.
+        kept = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[0].id, 'choice': 'B',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json').json()
+        self.assertEqual(kept['kept'], 1)
+        # Full authoritative choice map so the stale client can catch up. The
+        # kept pair reports the value the server actually holds ('A'), not the
+        # rejected forward write ('B').
+        self.assertEqual(
+            kept['answered'],
+            {str(self.stims[0].id): 'A', str(self.stims[1].id): 'A'},
+        )
+
+        # A clean forward insert returns just the touched pair's choice so the
+        # client can confirm the server holds its value.
+        clean = self.client.post(url, data=json.dumps({
+            'study_id': self.study.id, 'responses': [
+                {'stimulus_id': self.stims[2].id, 'choice': 'A',
+                 'swap': False, 'revise': False},
+            ]}), content_type='application/json').json()
+        self.assertEqual(clean['saved'], 1)
+        self.assertEqual(clean['answered'], {str(self.stims[2].id): 'A'})
+        self.assertEqual(clean['rejected_ids'], [])
+
+    def test_batch_accepts_beacon_form_payload(self):
+        payload = json.dumps({'study_id': self.study.id, 'responses': [
+            {'stimulus_id': self.stims[2].id, 'choice': 'A', 'swap': False},
+        ]})
+        r = self.client.post(
+            reverse('iqa:evaluation_submit_batch'), data={'payload': payload},
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertEqual(r.json()['saved'], 1)
+        self.assertTrue(PairResponse.objects.filter(
+            stimulus=self.stims[2], user=self.user,
+        ).exists())
+
+    def test_batch_reports_unsavable_items_as_rejected(self):
+        payload = {'study_id': self.study.id, 'responses': [
+            {'stimulus_id': self.stims[0].id, 'choice': 'X'},   # bad choice
+            {'stimulus_id': 999999, 'choice': 'A'},             # unknown pair
+            {'choice': 'A'},                                    # no id -> ignored
+            {'stimulus_id': self.stims[1].id, 'choice': 'A', 'swap': False},
+        ]}
+        r = self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps(payload), content_type='application/json',
+        )
+        data = r.json()
+        self.assertEqual(data['saved'], 1)
+        self.assertEqual(PairResponse.objects.filter(
+            user=self.user, stimulus__study=self.study,
+        ).count(), 1)
+        # Unsavable pairs come back so the client stops resending them forever
+        # (no "Upload now" loop on the done screen).
+        self.assertEqual(
+            set(data['rejected_ids']), {str(self.stims[0].id), '999999'},
+        )
+
+    def test_answered_endpoint_returns_choice_map(self):
+        PairResponse.objects.create(
+            stimulus=self.stims[0], user=self.user,
+            choice='A', display_choice='B',
+        )
+        r = self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id]),
+        )
+        self.assertEqual(r.status_code, 200)
+        # The display choice the annotator clicked, not just the id.
+        self.assertEqual(r.json()['answered'], {str(self.stims[0].id): 'B'})
+
+    def test_endpoints_require_local_mode(self):
+        self.study.use_local_mode = False
+        self.study.save(update_fields=['use_local_mode'])
+        self.assertEqual(self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id]),
+        ).status_code, 404)
+        self.assertEqual(self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id]),
+        ).status_code, 404)
+        self.assertRedirects(
+            self.client.get(
+                reverse('iqa:local_run', args=[self.study.id]),
+            ),
+            reverse('iqa:home'), fetch_redirect_response=False,
+        )
+
+    def test_classic_entry_points_redirect_to_local_run(self):
+        run = reverse('iqa:local_run', args=[self.study.id])
+        # Old direct/bookmarked evaluation URL funnels into local mode.
+        self.assertRedirects(
+            self.client.get(reverse('iqa:pair_evaluation', kwargs={
+                'study_id': self.study.id, 'stimulus_id': self.stims[0].id,
+            })),
+            run, fetch_redirect_response=False,
+        )
+        # The Start/Continue POST funnels into local mode too.
+        self.assertRedirects(
+            self.client.post(reverse('iqa:next_stimulus'), {
+                'study_id': self.study.id,
+            }),
+            run, fetch_redirect_response=False,
+        )
+
+    @override_settings(STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND':
+                'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    })
+    def test_run_view_renders_for_local_study(self):
+        r = self.client.get(
+            reverse('iqa:local_run', args=[self.study.id]),
+        )
+        self.assertEqual(r.status_code, 200)
+        self.assertContains(r, 'data-local-eval')
+
+
+class AssignmentTests(TestCase):
+    """Per-rater pair assignment gating + the import command."""
+
+    def setUp(self):
+        from .models import StudyAssignment
+        from .samplers import (
+            assigned_stimulus_ids, ordered_stimulus_ids, get_progress,
+        )
+        self.StudyAssignment = StudyAssignment
+        self.assigned_stimulus_ids = assigned_stimulus_ids
+        self.ordered_stimulus_ids = ordered_stimulus_ids
+        self.get_progress = get_progress
+
+        self.r1 = User.objects.create_user('rater1', password='x')
+        self.r2 = User.objects.create_user('rater2', password='x')
+        self.study = Study.objects.create(
+            name='A', mode=Study.MODE_2AFC, is_active=True,
+            sampler=Study.SAMPLER_RANDOM,
+        )
+        self.stims = []
+        for i in range(5):
+            a = Image.objects.create(fname=f'images/Test/p{i}_a.png')
+            b = Image.objects.create(fname=f'images/Test/p{i}_b.png')
+            ref = Image.objects.create(fname=f'images/Test/p{i}_ref.png')
+            self.stims.append(PairStimulus.objects.create(
+                study=self.study, image_a=a, image_b=b,
+                reference_a=ref, reference_b=ref, order=i,
+            ))
+
+    def _assign(self, user, stims):
+        sa = self.StudyAssignment.objects.create(
+            study=self.study, user=user,
+        )
+        sa.pair_stimuli.set(stims)
+        return sa
+
+    def test_no_assignments_means_everyone_sees_all(self):
+        self.assertIsNone(self.assigned_stimulus_ids(self.study, self.r1))
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 5,
+        )
+
+    def test_assigned_rater_is_restricted(self):
+        self._assign(self.r1, self.stims[:3])
+        ids = self.assigned_stimulus_ids(self.study, self.r1)
+        self.assertEqual(len(ids), 3)
+        self.assertEqual(len(self.ordered_stimulus_ids(self.study, self.r1)), 3)
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 3,
+        )
+        nxt = get_next_stimulus(self.study, self.r1)
+        self.assertIn(nxt.id, ids)
+
+    def test_unassigned_rater_on_gated_study_sees_nothing(self):
+        self._assign(self.r1, self.stims[:3])
+        # r2 has no assignment, but the study is now gated
+        self.assertEqual(self.assigned_stimulus_ids(self.study, self.r2), set())
+        self.assertEqual(
+            self.get_progress(self.study, self.r2)['total'], 0,
+        )
+        self.assertIsNone(get_next_stimulus(self.study, self.r2))
+
+    def test_overlap_between_raters(self):
+        self._assign(self.r1, self.stims[:3])   # 0,1,2
+        self._assign(self.r2, self.stims[2:])   # 2,3,4
+        a = self.assigned_stimulus_ids(self.study, self.r1)
+        b = self.assigned_stimulus_ids(self.study, self.r2)
+        self.assertEqual(len(a & b), 1)
+        self.assertEqual(len(a | b), 5)
+
+    def test_import_command_by_stem_idempotent(self):
+        import json
+        import tempfile
+        from django.core.management import call_command
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'rater1', 'pairs': ['p0', 'p1', 'p2']},
+                {'username': 'rater2',
+                 'pairs': ['images/Test/p3_a.png', 'p4_a.png']},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        call_command('import_assignments', path)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r1)), 3)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r2)), 2)
+        # re-import with a smaller set -> replaced, not appended
+        doc['assignments'][0]['pairs'] = ['p0']
+        with open(path, 'w') as f:
+            json.dump(doc, f)
+        call_command('import_assignments', path)
+        self.assertEqual(len(self.assigned_stimulus_ids(self.study, self.r1)), 1)
+
+    def test_progress_dashboard_uses_assigned_total(self):
+        staff = User.objects.create_user(
+            'boss', password='x', is_staff=True, is_superuser=True,
+        )
+        self.client.force_login(staff)
+        self._assign(self.r1, self.stims[:3])   # rater1 -> 3 of 5
+        # rater1 answers 2 of their assigned pairs
+        for st in self.stims[:2]:
+            PairResponse.objects.create(
+                stimulus=st, user=self.r1, choice='A',
+            )
+        r = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertEqual(r.status_code, 200)
+        row = next(
+            row for row in r.context['rows']
+            if row['user'].username == 'rater1'
+        )
+        cell = next(
+            c for c in row['cells'] if c['study'].id == self.study.id
+        )
+        self.assertEqual(cell['total'], 3)   # not 5
+        self.assertEqual(cell['done'], 2)
+        # r2 (unassigned, gated study) keeps the full-study denominator
+        row2 = next(
+            row for row in r.context['rows']
+            if row['user'].username == 'rater2'
+        )
+        cell2 = next(
+            c for c in row2['cells'] if c['study'].id == self.study.id
+        )
+        self.assertEqual(cell2['total'], 5)
+
+    def test_import_unknown_pair_key_aborts(self):
+        import json
+        import tempfile
+        from django.core.management import call_command
+        from django.core.management.base import CommandError
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'rater1', 'pairs': ['p0', 'nonesuch']},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        with self.assertRaises(CommandError):
+            call_command('import_assignments', path)
+        # nothing written
+        self.assertFalse(
+            self.StudyAssignment.objects.filter(study=self.study).exists()
+        )
+
+
+class QCModeTests(TestCase):
+    """Binary qualification studies: manifest, batch upsert, exports."""
+
+    def setUp(self):
+        self.user = User.objects.create_user('qc01', password='x')
+        self.client.force_login(self.user)
+        self.study = Study.objects.create(
+            name='Q', mode=Study.MODE_QC, is_active=True,
+            sampler=Study.SAMPLER_SEQUENTIAL,
+        )
+        self.stims = []
+        for i in range(4):
+            img = Image.objects.create(fname=f'images/q{i}.png')
+            ref = Image.objects.create(fname=f'images/q{i}_ref.png')
+            self.stims.append(QCStimulus.objects.create(
+                study=self.study, image=img, reference=ref, order=i,
+            ))
+
+    def _manifest(self):
+        return self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+
+    def _batch(self, responses):
+        return self.client.post(
+            reverse('iqa:evaluation_submit_batch'),
+            data=json.dumps({
+                'study_id': self.study.id, 'responses': responses,
+            }),
+            content_type='application/json',
+        )
+
+    def test_manifest_lists_one_image_and_reference_per_trial(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        data = self._manifest()
+        self.assertEqual(data['study']['mode'], 'QC')
+        self.assertEqual(data['total'], 4)
+        t0 = data['trials'][0]
+        self.assertTrue(t0['img'].startswith('http'))
+        self.assertTrue(t0['ref'].startswith('http'))
+        # No second candidate and no A/B swap in QC.
+        self.assertNotIn('img_a', t0)
+        self.assertNotIn('swap', t0)
+        self.assertEqual(data['answered'].get(str(self.stims[0].id)), 'Y')
+
+    @override_settings(STORAGES={
+        'default': {
+            'BACKEND': 'django.core.files.storage.FileSystemStorage',
+        },
+        'staticfiles': {
+            'BACKEND':
+                'django.contrib.staticfiles.storage.StaticFilesStorage',
+        },
+    })
+    def test_qc_study_is_local_mode_without_the_flag(self):
+        """QC has no server-driven page, so it never needs use_local_mode."""
+        self.assertFalse(self.study.use_local_mode)
+        response = self.client.get(
+            reverse('iqa:local_run', args=[self.study.id])
+        )
+        self.assertEqual(response.status_code, 200)
+        self.assertTemplateUsed(response, 'iqa/qc_local.html')
+        self.assertContains(response, 'data-mode="QC"')
+
+    def test_batch_saves_yes_no_and_snapshots_shown_filenames(self):
+        response = self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'Y'},
+            {'stimulus_id': self.stims[1].id, 'choice': 'N'},
+        ])
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.json()['saved'], 2)
+        yes = QCResponse.objects.get(stimulus=self.stims[0])
+        self.assertEqual(yes.choice, 'Y')
+        self.assertEqual(yes.shown_image, 'images/q0.png')
+        self.assertEqual(yes.shown_reference, 'images/q0_ref.png')
+        self.assertEqual(
+            QCResponse.objects.get(stimulus=self.stims[1]).choice, 'N',
+        )
+
+    def test_forward_answer_never_overwrites_but_revise_does(self):
+        self._batch([{'stimulus_id': self.stims[0].id, 'choice': 'Y'}])
+
+        # A forward answer to an already-answered trial (e.g. a stale tab)
+        # is kept out; the server's value wins and is handed back.
+        response = self._batch(
+            [{'stimulus_id': self.stims[0].id, 'choice': 'N'}]
+        )
+        body = response.json()
+        self.assertEqual(body['saved'], 0)
+        self.assertEqual(body['kept'], 1)
+        self.assertEqual(body['answered'][str(self.stims[0].id)], 'Y')
+        self.assertEqual(
+            QCResponse.objects.get(stimulus=self.stims[0]).choice, 'Y',
+        )
+
+        # A deliberate revise overwrites in place, never duplicating.
+        self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'N', 'revise': True},
+        ])
+        rows = QCResponse.objects.filter(stimulus=self.stims[0])
+        self.assertEqual(rows.count(), 1)
+        self.assertEqual(rows.first().choice, 'N')
+
+    def test_batch_rejects_pair_choices_and_unknown_stimuli(self):
+        response = self._batch([
+            {'stimulus_id': self.stims[0].id, 'choice': 'A'},
+            {'stimulus_id': 999999, 'choice': 'Y'},
+        ])
+        body = response.json()
+        self.assertEqual(body['saved'], 0)
+        self.assertEqual(
+            sorted(body['rejected_ids']),
+            sorted([str(self.stims[0].id), '999999']),
+        )
+        self.assertFalse(QCResponse.objects.exists())
+
+    def test_answered_endpoint_returns_choice_map(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[2], user=self.user, choice='N',
+        )
+        data = self.client.get(
+            reverse('iqa:study_answered', args=[self.study.id])
+        ).json()
+        self.assertEqual(
+            data['answered'], {str(self.stims[2].id): 'N'},
+        )
+
+    def test_completed_study_stays_open_for_review(self):
+        """A finished study must not dead-end on a disabled button.
+
+        Annotators come back to re-check their own answers, so the card keeps
+        linking into the runner (which opens on the last trial) instead of
+        going inert once every trial is answered.
+        """
+        for stimulus in self.stims:
+            QCResponse.objects.create(
+                stimulus=stimulus, user=self.user, choice='Y',
+            )
+        response = self.client.get(reverse('iqa:home'))
+        run_url = reverse('iqa:local_run', args=[self.study.id])
+        card = next(
+            c for c in response.context['study_cards']
+            if c['study'].id == self.study.id
+        )
+        self.assertTrue(card['is_completed'])
+        self.assertContains(response, f'href="{run_url}"')
+        self.assertContains(response, 'Review Answers')
+        self.assertNotContains(response, 'disabled>Completed')
+
+    def test_progress_counts_qc_responses(self):
+        from .samplers import get_progress
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        self.assertEqual(
+            get_progress(self.study, self.user), {'done': 1, 'total': 4},
+        )
+
+    def test_export_lists_image_reference_and_verdict(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+            shown_image='images/q0.png',
+            shown_reference='images/q0_ref.png',
+        )
+        staff = User.objects.create_user(
+            'qcstaff', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        body = self.client.get(
+            reverse('iqa:export_csv', args=[self.study.id])
+        ).content.decode()
+        self.assertIn('image,reference,choice', body)
+        self.assertIn('qc01,0,images/q0.png,images/q0_ref.png,Y', body)
+
+    def test_staff_dashboard_counts_qc_progress(self):
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.user, choice='Y',
+        )
+        staff = User.objects.create_user(
+            'qcstaff2', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        response = self.client.get(reverse('iqa:annotator_progress'))
+        self.assertEqual(response.status_code, 200)
+        cells = {
+            (row['user'].username, cell['study'].id): cell
+            for row in response.context['rows']
+            for cell in row['cells']
+        }
+        cell = cells[('qc01', self.study.id)]
+        self.assertEqual((cell['done'], cell['total']), (1, 4))
+
+
+class QCAssignmentTests(TestCase):
+    """Per-rater assignment gating for QC studies + the import command."""
+
+    def setUp(self):
+        from .models import StudyAssignment
+        from .samplers import assigned_stimulus_ids, get_progress
+        self.StudyAssignment = StudyAssignment
+        self.assigned_stimulus_ids = assigned_stimulus_ids
+        self.get_progress = get_progress
+
+        self.r1 = User.objects.create_user('qcr1', password='x')
+        self.r2 = User.objects.create_user('qcr2', password='x')
+        self.study = Study.objects.create(
+            name='QA', mode=Study.MODE_QC, is_active=True,
+        )
+        self.stims = []
+        for i in range(5):
+            img = Image.objects.create(fname=f'images/Test/s{i}.png')
+            ref = Image.objects.create(fname=f'images/Test/s{i}_ref.png')
+            self.stims.append(QCStimulus.objects.create(
+                study=self.study, image=img, reference=ref, order=i,
+            ))
+
+    def _assign(self, user, stims):
+        sa = self.StudyAssignment.objects.create(
+            study=self.study, user=user,
+        )
+        sa.qc_stimuli.set(stims)
+        return sa
+
+    def test_assigned_rater_is_restricted(self):
+        self._assign(self.r1, self.stims[:2])
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r1),
+            {self.stims[0].id, self.stims[1].id},
+        )
+        self.assertEqual(
+            self.get_progress(self.study, self.r1)['total'], 2,
+        )
+
+    def test_unassigned_rater_on_gated_study_sees_nothing(self):
+        self._assign(self.r1, self.stims[:2])
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r2), set(),
+        )
+        self.assertEqual(
+            self.get_progress(self.study, self.r2)['total'], 0,
+        )
+
+    def test_manifest_only_lists_assigned_stimuli(self):
+        self._assign(self.r1, self.stims[:2])
+        self.client.force_login(self.r1)
+        data = self.client.get(
+            reverse('iqa:study_manifest', args=[self.study.id])
+        ).json()
+        self.assertEqual(
+            [t['id'] for t in data['trials']],
+            [self.stims[0].id, self.stims[1].id],
+        )
+
+    def test_import_command_keys_qc_stimuli_by_stem(self):
+        import tempfile
+        from django.core.management import call_command
+
+        doc = {
+            'study_id': self.study.id,
+            'assignments': [
+                {'username': 'qcr1', 'pairs': ['s0', 's1', 's2']},
+                # Full path and bare filename resolve to the same stimulus.
+                {'username': 'qcr2', 'pairs': [
+                    'images/Test/s3.png', 's4.png',
+                ]},
+            ],
+        }
+        with tempfile.NamedTemporaryFile(
+            'w', suffix='.json', delete=False,
+        ) as f:
+            json.dump(doc, f)
+            path = f.name
+        call_command('import_assignments', path)
+        self.assertEqual(
+            len(self.assigned_stimulus_ids(self.study, self.r1)), 3,
+        )
+        self.assertEqual(
+            self.assigned_stimulus_ids(self.study, self.r2),
+            {self.stims[3].id, self.stims[4].id},
+        )
+
+    def test_dashboard_uses_assigned_total_for_qc(self):
+        self._assign(self.r1, self.stims[:2])
+        QCResponse.objects.create(
+            stimulus=self.stims[0], user=self.r1, choice='Y',
+        )
+        # An answer outside the assignment must not inflate "done".
+        QCResponse.objects.create(
+            stimulus=self.stims[4], user=self.r1, choice='N',
+        )
+        staff = User.objects.create_user(
+            'qcstaff3', password='x', is_staff=True,
+        )
+        self.client.force_login(staff)
+        response = self.client.get(reverse('iqa:annotator_progress'))
+        cell = next(
+            cell
+            for row in response.context['rows'] if row['user'] == self.r1
+            for cell in row['cells'] if cell['study'].id == self.study.id
+        )
+        self.assertEqual((cell['done'], cell['total']), (1, 2))
+
+
+class HealthCheckMiddlewareTests(SimpleTestCase):
+    @override_settings(ALLOWED_HOSTS=[])
+    def test_health_check_bypasses_host_validation(self):
+        response = self.client.get('/healthz', HTTP_HOST='10.0.0.17')
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(response.content, b'ok')
+
+    @override_settings(ALLOWED_HOSTS=[])
+    def test_non_health_request_still_validates_host(self):
+        response = self.client.get('/iqa/login/', HTTP_HOST='10.0.0.17')
+        self.assertEqual(response.status_code, 400)

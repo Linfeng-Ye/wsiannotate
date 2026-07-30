@@ -1,0 +1,412 @@
+/* Local-first 2AFC mode: loading, status, and done panels. */
+
+.local-status {
+    margin: 40px auto;
+    max-width: 520px;
+    padding: 18px 20px;
+    border: 1px solid var(--line);
+    border-radius: 8px;
+    background: var(--surface);
+    color: var(--muted);
+    font-size: 15px;
+    text-align: center;
+}
+
+.local-status[hidden] {
+    display: none;
+}
+
+.local-status.is-error {
+    border-color: var(--warning-line);
+    background: var(--warning-bg);
+    color: var(--warning-text);
+}
+
+.local-done {
+    margin: 48px auto;
+    max-width: 560px;
+    padding: 26px 28px;
+    border: 1px solid var(--line-strong);
+    border-radius: 10px;
+    background: var(--surface);
+    color: var(--text);
+    text-align: center;
+}
+
+.local-done[hidden] {
+    display: none;
+}
+
+.local-done h2 {
+    margin: 0 0 10px;
+    color: var(--text-strong);
+    font-size: 22px;
+}
+
+.local-done p {
+    margin: 0 0 8px;
+    color: var(--muted);
+    font-size: 15px;
+}
+
+.local-done .local-done-count {
+    color: var(--text-strong);
+    font-weight: 720;
+    font-variant-numeric: tabular-nums;
+}
+
+.local-done-actions {
+    display: flex;
+    gap: 10px;
+    justify-content: center;
+    flex-wrap: wrap;
+    margin-top: 18px;
+}
+
+.local-done-actions .btn {
+    min-width: 150px;
+    min-height: 46px;
+    padding: 11px 20px;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font-weight: 720;
+}
+
+.local-done-actions .btn-primary {
+    border-color: rgba(104, 183, 203, 0.72);
+    background: #163744;
+    color: var(--text-strong);
+}
+
+.local-done.is-warning {
+    border-color: var(--warning-line);
+}
+
+.local-done.is-warning h2 {
+    color: var(--warning-text);
+}
+
+/* Tiny inline sync note on the done screen (never a per-click indicator). */
+.local-sync-note {
+    margin-top: 12px;
+    font-size: 13px;
+    color: var(--muted-2);
+}
+
+/* Shown when the current pair's images fail to load (offline / CDN down),
+   so an annotator can't "answer" a blank pair. */
+.local-image-warning {
+    margin: 10px auto;
+    max-width: 560px;
+    padding: 10px 14px;
+    border: 1px solid var(--warning-line);
+    border-radius: 7px;
+    background: var(--warning-bg);
+    color: var(--warning-text);
+    font-size: 14px;
+    text-align: center;
+}
+
+/* Progress lives in a small corner chip rather than a header row: on a laptop
+   screen every row above the images pushes them below the fold. */
+.eval-progress-chip {
+    position: fixed;
+    top: 6px;
+    right: 10px;
+    z-index: 45;
+    padding: 3px 9px;
+    border: 1px solid var(--line);
+    border-radius: 6px;
+    background: rgba(17, 22, 26, 0.82);
+    backdrop-filter: blur(8px);
+    color: var(--muted-2);
+    font-size: 11px;
+    font-weight: 700;
+    font-variant-numeric: tabular-nums;
+    line-height: 1.4;
+    white-space: nowrap;
+    pointer-events: none;
+}
+
+.eval-progress-sub {
+    font-size: 11px;
+    font-weight: 600;
+}
+
+/* Whose answers these are. Brighter than the counters beside it and split off
+   by a rule, so it reads as identity rather than another statistic. */
+.eval-progress-user {
+    padding-right: 7px;
+    margin-right: 6px;
+    border-right: 1px solid var(--line-strong);
+    color: var(--text);
+}
+
+.eval-progress-sub::before {
+    content: "\00b7";
+    margin: 0 4px;
+}
+
+/* Keep the zoom control clear of the chip. */
+[data-local-eval] .image-toolbar {
+    margin: 0 140px 6px 0;
+}
+
+[data-local-eval] .pair-shared-ref-layout {
+    margin-bottom: 6px;
+}
+
+/* Keyboard-shortcut hints. The button bar is fixed to the bottom of the
+   viewport, so the hint row is pinned just above it (and hidden on touch/
+   small screens, where keyboard shortcuts don't apply). */
+.kbd-hints {
+    display: flex;
+    flex-wrap: wrap;
+    justify-content: center;
+    align-items: center;
+    gap: 4px 14px;
+    font-size: 11px;
+    color: var(--muted-2);
+}
+
+.evaluation-pair .kbd-hints {
+    position: fixed;
+    left: 50%;
+    transform: translateX(-50%);
+    bottom: calc(max(12px, env(safe-area-inset-bottom)) + 60px);
+    z-index: 39;
+    max-width: min(760px, calc(100vw - 24px));
+    margin: 0;
+    padding: 5px 12px;
+    border-radius: 9px;
+    background: rgba(17, 22, 26, 0.82);
+    backdrop-filter: blur(8px);
+    pointer-events: none;   /* purely informational */
+}
+
+/* Wide screens: park the hints in the empty bottom-left corner beside the
+   button bars, where they read as a fixed manual and never cover an image. */
+@media (min-width: 1151px) {
+    .evaluation-pair .kbd-hints {
+        left: 12px;
+        bottom: max(12px, env(safe-area-inset-bottom));
+        transform: none;
+        display: grid;
+        grid-template-columns: auto auto;
+        justify-content: start;
+        gap: 3px 14px;
+        max-width: 250px;
+        padding: 7px 10px;
+        background: rgba(17, 22, 26, 0.62);
+    }
+}
+
+.kbd-hint {
+    display: inline-flex;
+    align-items: center;
+    gap: 5px;
+    white-space: nowrap;
+}
+
+.kbd-hints kbd {
+    display: inline-flex;
+    align-items: center;
+    justify-content: center;
+    min-width: 18px;
+    height: 18px;
+    padding: 0 5px;
+    border: 1px solid var(--line);
+    border-bottom-width: 2px;
+    border-radius: 4px;
+    background: var(--surface-2);
+    color: var(--text);
+    font: 600 11px/1 ui-monospace, SFMono-Regular, Menlo, monospace;
+}
+
+@media (max-width: 760px) {
+    .evaluation-pair .kbd-hints { display: none; }
+}
+
+/* With the title, prompt and progress row gone, the images get the rest of
+   the viewport instead of a fixed 46vh slice. The width cap keeps three
+   panels on one row when the pair is short and wide.
+
+   The height is derived rather than a share of the viewport, so the page
+   always fits and never scrolls. The old 88vh bound ignored the loupe tray,
+   which sits *below* the images: on a 13" laptop with 1024px source images
+   that pushed the magnified previews 89px behind the button bar and 23px off
+   the bottom of the screen. Budget:
+
+     100svh - 80px  top chrome (padding, zoom toolbar, image label)
+             - 86px  keyboard hints + fixed button bar
+             - 46px  gap above the tray, tray padding, and slack
+     divided by 1.38, because the tray is 0.38x the image side (see
+     data-zoom-preview-ratio) and so scales with it.
+
+   The 560px cap stops the images growing without bound on a large monitor --
+   the sources are 1024px, but they do not need to be shown at full size.
+
+   The 300px floor is what makes browser zoom behave. Subtracting a *fixed*
+   chrome allowance from a viewport that zoom keeps shrinking meant the
+   allowance ate an ever larger share of it: at 200% the 240px reserve is
+   most of a 385px viewport, so the image collapsed to 125px while the
+   px-sized buttons rendered twice as large -- images shrinking as buttons
+   grew. Below the floor the layout stops fitting and simply scrolls, which
+   is what zooming in should do. Extreme zoom is not really readable either
+   way, so it is not worth contorting the normal case for. */
+@media (min-width: 761px) {
+    [data-local-eval].evaluation-pair.sizing-fit_screen .eval-image,
+    [data-local-eval].evaluation-pair.has-zoom.sizing-fit_screen .eval-image {
+        max-width: calc((100vw - 110px) / 3);
+        max-height: clamp(300px, calc((100svh - 240px) / 1.38), 560px);
+    }
+}
+
+/* The full-viewport min-height double-counted the fixed button bars against
+   the budget above and pushed the page ~6px past the viewport, producing a
+   hairline scrollbar; local mode sizes its content to fit, so it does not
+   need one. The bottom padding stays: once the image hits its floor the page
+   is meant to scroll, and without it the last of the content would sit under
+   the fixed bars instead of clearing them. */
+[data-local-eval].evaluation-pair {
+    min-height: 0;
+    padding-bottom: 92px;
+}
+
+/* ---------- QC mode: yes/no verdict ----------
+   A QC trial has one right answer per image and no A/B symmetry, so the
+   selected state is colour-coded rather than accent-highlighted: red for
+   "not qualified", green for "qualified". The colour lands on both the
+   button and the image itself so the current verdict is unmistakable
+   without looking away from the tissue. */
+
+/* QC shows two panels, not three, so it must not inherit the A/Ref/B grid --
+   in particular the narrow-screen rule that lifts the *second* child onto its
+   own full-width row. With only two children that second child is the image
+   itself, which stranded the reference half-width underneath it. The
+   reference stays on the same line as the candidate at every width. */
+.evaluation-qc .qc-layout {
+    display: grid;
+    /* Size the columns to the images, not to half the viewport. With 1fr each
+       panel stretches to fill its half, so the images sit marooned in the
+       middle of two wide boxes and drift further apart the wider the window
+       gets. max-content makes each panel hug its image, and the pair is then
+       centred as a unit -- the way the magnified loupe previews sit. */
+    grid-template-columns: repeat(2, minmax(0, max-content));
+    justify-content: center;
+    align-items: start;
+    gap: 10px;
+    width: fit-content;
+    max-width: 100%;
+    margin: 0 auto 8px;
+}
+
+.evaluation-qc .qc-layout .image-panel:nth-child(n) {
+    grid-column: auto;
+    grid-row: auto;
+    min-width: 0;
+    max-width: none;
+}
+
+/* Cap the image in *pixels*, not viewport units, so browser zoom (cmd +/-)
+   actually changes how much fits on screen. A vh-only cap is by definition a
+   fixed share of the viewport, so it renders the same physical size at every
+   zoom level -- which is why the page could not be shrunk. The px cap binds
+   once you zoom out, so the images get physically smaller as expected; the
+   svh term still keeps them inside a short window at 100%. Specificity has to
+   clear the shared [data-local-eval] sizing rule above. */
+[data-local-eval].evaluation-qc.has-zoom.sizing-fit_screen .qc-layout .eval-image,
+[data-local-eval].evaluation-qc.sizing-fit_screen .qc-layout .eval-image {
+    max-width: calc((100vw - 90px) / 2);
+    /* The loupe tray sits *below* the images and is 0.38x their side (see
+       data-zoom-preview-ratio in qc_local.html), so the pair needs 1.38x the
+       image height to fit. Divide the free height by that, or the magnified
+       previews get pushed under the fixed button bar and off the bottom of
+       the screen. 240px is the surrounding chrome: zoom toolbar, label,
+       wrapper padding, the button bar's overlay zone and the bottom padding.
+       Floor and cap as in the shared rule above: the floor keeps browser zoom
+       from collapsing the image while the px-sized buttons grow. */
+    max-height: clamp(300px, calc((100svh - 240px) / 1.38), 640px);
+}
+
+.qc-btn.active {
+    color: #ffffff;
+}
+
+.qc-btn-no.active {
+    border-color: #e88898;
+    background: #7c2130;
+    box-shadow: inset 0 0 0 1px rgba(232, 136, 152, 0.4);
+}
+
+.qc-btn-yes.active {
+    border-color: #9ad98c;
+    background: #1f5c2a;
+    box-shadow: inset 0 0 0 1px rgba(154, 217, 140, 0.4);
+}
+
+.qc-verdict-wrapper {
+    transition:
+        border-color 0.14s ease,
+        box-shadow 0.14s ease;
+}
+
+.qc-verdict-wrapper.is-no {
+    border-color: #e15d6f;
+    box-shadow:
+        0 0 0 3px rgba(225, 93, 111, 0.7),
+        0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+.qc-verdict-wrapper.is-yes {
+    border-color: #87c47a;
+    box-shadow:
+        0 0 0 3px rgba(135, 196, 122, 0.7),
+        0 10px 30px rgba(0, 0, 0, 0.28);
+}
+
+/* Next button mirrors the Previous/nav button styling (scoped to local mode
+   so the shared evaluation stylesheet stays untouched). */
+.next-btn {
+    border-radius: 7px;
+    font-weight: 760;
+    cursor: pointer;
+    transition:
+        background 0.14s ease,
+        border-color 0.14s ease,
+        color 0.14s ease,
+        box-shadow 0.14s ease;
+    border: 1px solid var(--line);
+    background: var(--surface-2);
+    color: var(--text);
+    font-size: 14px;
+    min-width: 132px;
+    min-height: 44px;
+    padding: 10px 22px;
+}
+
+.evaluation-pair .next-btn {
+    flex: 1 1 0;
+    min-width: 0;
+    min-height: 40px;
+    padding: 7px 10px;
+    font-size: 13px;
+}
+
+.next-btn:hover:not(:disabled) {
+    border-color: var(--line-strong);
+    background: var(--surface-3);
+}
+
+.next-btn:focus-visible {
+    outline: none;
+    box-shadow: 0 0 0 3px rgba(104, 183, 203, 0.28);
+}
+
+.next-btn:disabled {
+    border-color: #363d45;
+    background: #2a3036;
+    color: #828c96;
+    cursor: not-allowed;
+}

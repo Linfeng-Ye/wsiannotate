@@ -50,6 +50,20 @@ CSRF_COOKIE_SECURE = _env_bool(
     not DEBUG,
 )
 
+# Annotators work through thousands of pairs over long stretches. Keep the
+# login session (and therefore the CSRF token, which is tied to it) alive for
+# ~2 months, and make it a rolling window refreshed on every request so an
+# active annotator is never logged out mid-study — a silent session expiry
+# would make every background answer-sync fail with no obvious signal.
+SESSION_COOKIE_AGE = 60 * 60 * 24 * 60          # 60 days
+SESSION_SAVE_EVERY_REQUEST = True               # slide the window on activity
+SESSION_EXPIRE_AT_BROWSER_CLOSE = False
+CSRF_COOKIE_AGE = 60 * 60 * 24 * 60             # match the session window
+
+# A stale login form (token rotated by a login/logout in another tab) becomes
+# a retry prompt rather than a raw 403; every other path keeps Django's page.
+CSRF_FAILURE_VIEW = 'iqa.views.csrf_failure'
+
 INSTALLED_APPS = [
     'django.contrib.admin',
     'django.contrib.auth',
@@ -61,6 +75,7 @@ INSTALLED_APPS = [
 ]
 
 MIDDLEWARE = [
+    'iqa.middleware.HealthCheckMiddleware',
     'django.middleware.security.SecurityMiddleware',
     'whitenoise.middleware.WhiteNoiseMiddleware',
     'django.contrib.sessions.middleware.SessionMiddleware',
@@ -93,13 +108,25 @@ TEMPLATES = [
 
 WSGI_APPLICATION = 'iqa_site.wsgi.application'
 
-DATABASES = {
-    'default': {
-        'ENGINE': 'django.db.backends.sqlite3',
-        'NAME': BASE_DIR / 'db.sqlite3',
-        'OPTIONS': {'timeout': 30},
+_DATABASE_URL = os.environ.get('DATABASE_URL')
+if _DATABASE_URL:
+    import dj_database_url
+
+    DATABASES = {
+        'default': dj_database_url.parse(
+            _DATABASE_URL,
+            conn_max_age=60,
+            ssl_require=True,
+        ),
     }
-}
+else:
+    DATABASES = {
+        'default': {
+            'ENGINE': 'django.db.backends.sqlite3',
+            'NAME': BASE_DIR / 'db.sqlite3',
+            'OPTIONS': {'timeout': 30},
+        }
+    }
 
 AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.'
@@ -111,6 +138,35 @@ AUTH_PASSWORD_VALIDATORS = [
     {'NAME': 'django.contrib.auth.password_validation.'
              'NumericPasswordValidator'},
 ]
+
+LOGGING = {
+    'version': 1,
+    'disable_existing_loggers': False,
+    'handlers': {
+        'console': {
+            'class': 'logging.StreamHandler',
+        },
+    },
+    'loggers': {
+        'iqa': {
+            'handlers': ['console'],
+            'level': 'INFO',
+            'propagate': False,
+        },
+        # Django's own `django` logger only reaches the console behind
+        # `require_debug_true`, so with DEBUG=False the reason for a 403 is
+        # thrown away and the access log just shows a bare "POST /iqa/login/
+        # 403". Wire the CSRF logger straight to stdout so App Runner's
+        # CloudWatch stream records which check actually failed ("CSRF cookie
+        # not set", "CSRF token from POST incorrect", "Origin checking
+        # failed", ...) next time a rater hits it.
+        'django.security.csrf': {
+            'handlers': ['console'],
+            'level': 'WARNING',
+            'propagate': False,
+        },
+    },
+}
 
 LANGUAGE_CODE = 'en-us'
 TIME_ZONE = 'UTC'
