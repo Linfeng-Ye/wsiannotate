@@ -278,10 +278,10 @@ def csrf_failure(request, reason=''):
     if request.path != login_url:
         return default_csrf_failure(request, reason=reason)
 
-    # Already signed in elsewhere: the login they were attempting is moot.
-    if request.user.is_authenticated:
-        return redirect('iqa:home')
-
+    # Send them back to a freshly rendered login form even when a session
+    # already exists. Skipping to the home page would silently sign the
+    # submitter in as whoever that session belongs to -- wrong on a shared
+    # machine, and the same trap as ``redirect_authenticated_user``.
     next_url = request.GET.get('next') or request.POST.get('next')
     if next_url and url_has_allowed_host_and_scheme(
         next_url, allowed_hosts={request.get_host()},
