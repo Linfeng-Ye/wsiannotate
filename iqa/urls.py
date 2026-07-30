@@ -12,18 +12,7 @@ urlpatterns = [
     path('home/', views.home, name='home'),
     path(
         'login/',
-        auth_views.LoginView.as_view(
-            template_name='iqa/login.html',
-            # Deliberately NOT redirect_authenticated_user: LoginView.dispatch()
-            # applies that before post(), so an already-signed-in browser
-            # posting the form is bounced to the success URL with its username
-            # and password never checked. On a shared machine that silently
-            # drops the second rater into the first one's session and
-            # misattributes their answers -- and a wrong password looks
-            # identical to a correct one. Letting the POST through means
-            # credentials are validated and login() switches the session to
-            # whoever actually authenticated.
-        ),
+        views.RaterLoginView.as_view(),
         name='login',
     ),
     path(

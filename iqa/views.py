@@ -11,6 +11,7 @@ from django.contrib import messages
 from django.contrib.admin.views.decorators import (
     staff_member_required,
 )
+from django.contrib.auth import views as auth_views
 from django.contrib.auth.decorators import (
     login_required, user_passes_test,
 )
@@ -256,15 +257,44 @@ def login_redirect(request):
     return redirect('iqa:home')
 
 
+RETRY_USERNAME_KEY = 'iqa_login_retry_username'
+
+
+class RaterLoginView(auth_views.LoginView):
+    """The login page, with the username kept across a CSRF retry.
+
+    Deliberately *not* ``redirect_authenticated_user``: ``LoginView.dispatch()``
+    applies that before ``post()``, so an already-signed-in browser posting the
+    form is bounced to the success URL with its username and password never
+    checked -- a wrong password looks identical to a correct one, and on a
+    shared machine the second rater silently annotates inside the first one's
+    session. Letting the POST through means credentials are validated and
+    ``login()`` switches the session to whoever actually authenticated.
+    """
+
+    template_name = 'iqa/login.html'
+
+    def get_context_data(self, **kwargs):
+        context = super().get_context_data(**kwargs)
+        # Pop, so the prefill applies to the retry and not to every later visit.
+        context['retry_username'] = self.request.session.pop(
+            RETRY_USERNAME_KEY, '',
+        )
+        return context
+
+
 def csrf_failure(request, reason=''):
-    """Recover from a stale login token instead of dead-ending on a 403.
+    """Turn a stale login token into a retry prompt, not a dead-end 403.
 
     Both ``auth.login()`` and ``auth.logout()`` call ``rotate_token()``, so
     logging in anywhere in a browser silently invalidates the token embedded
     in any *other* login page already rendered -- a second tab, or a page the
     browser restored from a previous session. Submitting that form gives
-    "CSRF token from POST incorrect", which annotators see as a raw yellow
-    403 and work around by pressing Back and retrying. Do that for them.
+    "CSRF token from POST incorrect", which annotators saw as a raw yellow 403.
+
+    Redirect (rather than re-render) so a refresh does not re-POST, and carry
+    the username in the session -- not the query string, which would put it in
+    the access logs -- so the rater only has to retype their password.
 
     Only the login page is rewritten. Everything else keeps Django's default
     403 -- in particular the local-first ``submit-batch`` endpoint, whose
@@ -282,6 +312,10 @@ def csrf_failure(request, reason=''):
     # already exists. Skipping to the home page would silently sign the
     # submitter in as whoever that session belongs to -- wrong on a shared
     # machine, and the same trap as ``redirect_authenticated_user``.
+    username = (request.POST.get('username') or '').strip()
+    if username:
+        request.session[RETRY_USERNAME_KEY] = username[:150]
+
     next_url = request.GET.get('next') or request.POST.get('next')
     if next_url and url_has_allowed_host_and_scheme(
         next_url, allowed_hosts={request.get_host()},
