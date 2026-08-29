@@ -1,0 +1,312 @@
+{
+  "name": "WSI Distortion Test",
+  "mode": "2AFC",
+  "prompt": "Which image looks closer to the reference in quality?",
+  "sampler": "random",
+  "pair_shared_ref_layout": true,
+  "use_local_mode": true,
+  "zoom_enabled": true,
+  "zoom_factor": 2.0,
+  "stimuli": [
+    {
+      "image_a": "images/Test/000001_x14152_y152922_0000_a.png",
+      "image_b": "images/Test/000001_x14152_y152922_0000_b.png",
+      "reference_a": "images/Test/000001_x14152_y152922_0000_ref.png",
+      "reference_b": "images/Test/000001_x14152_y152922_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000011_x6208_y19616_0000_a.png",
+      "image_b": "images/Test/000011_x6208_y19616_0000_b.png",
+      "reference_a": "images/Test/000011_x6208_y19616_0000_ref.png",
+      "reference_b": "images/Test/000011_x6208_y19616_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000026_x8198_y78452_0000_a.png",
+      "image_b": "images/Test/000026_x8198_y78452_0000_b.png",
+      "reference_a": "images/Test/000026_x8198_y78452_0000_ref.png",
+      "reference_b": "images/Test/000026_x8198_y78452_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000026_x8256_y15520_0000_a.png",
+      "image_b": "images/Test/000026_x8256_y15520_0000_b.png",
+      "reference_a": "images/Test/000026_x8256_y15520_0000_ref.png",
+      "reference_b": "images/Test/000026_x8256_y15520_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000027_x8198_y79476_0000_a.png",
+      "image_b": "images/Test/000027_x8198_y79476_0000_b.png",
+      "reference_a": "images/Test/000027_x8198_y79476_0000_ref.png",
+      "reference_b": "images/Test/000027_x8198_y79476_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000028_x8198_y80500_0000_a.png",
+      "image_b": "images/Test/000028_x8198_y80500_0000_b.png",
+      "reference_a": "images/Test/000028_x8198_y80500_0000_ref.png",
+      "reference_b": "images/Test/000028_x8198_y80500_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000029_x8198_y81524_0000_a.png",
+      "image_b": "images/Test/000029_x8198_y81524_0000_b.png",
+      "reference_a": "images/Test/000029_x8198_y81524_0000_ref.png",
+      "reference_b": "images/Test/000029_x8198_y81524_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000030_x8198_y82548_0000_a.png",
+      "image_b": "images/Test/000030_x8198_y82548_0000_b.png",
+      "reference_a": "images/Test/000030_x8198_y82548_0000_ref.png",
+      "reference_b": "images/Test/000030_x8198_y82548_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000030_x8256_y19616_0000_a.png",
+      "image_b": "images/Test/000030_x8256_y19616_0000_b.png",
+      "reference_a": "images/Test/000030_x8256_y19616_0000_ref.png",
+      "reference_b": "images/Test/000030_x8256_y19616_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000031_x8198_y83572_0000_a.png",
+      "image_b": "images/Test/000031_x8198_y83572_0000_b.png",
+      "reference_a": "images/Test/000031_x8198_y83572_0000_ref.png",
+      "reference_b": "images/Test/000031_x8198_y83572_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000032_x20008_y123271_0000_a.png",
+      "image_b": "images/Test/000032_x20008_y123271_0000_b.png",
+      "reference_a": "images/Test/000032_x20008_y123271_0000_ref.png",
+      "reference_b": "images/Test/000032_x20008_y123271_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000032_x8198_y84596_0000_a.png",
+      "image_b": "images/Test/000032_x8198_y84596_0000_b.png",
+      "reference_a": "images/Test/000032_x8198_y84596_0000_ref.png",
+      "reference_b": "images/Test/000032_x8198_y84596_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000041_x22056_y121223_0000_a.png",
+      "image_b": "images/Test/000041_x22056_y121223_0000_b.png",
+      "reference_a": "images/Test/000041_x22056_y121223_0000_ref.png",
+      "reference_b": "images/Test/000041_x22056_y121223_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000053_x10304_y17568_0000_a.png",
+      "image_b": "images/Test/000053_x10304_y17568_0000_b.png",
+      "reference_a": "images/Test/000053_x10304_y17568_0000_ref.png",
+      "reference_b": "images/Test/000053_x10304_y17568_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000058_x10145_y39072_0000_a.png",
+      "image_b": "images/Test/000058_x10145_y39072_0000_b.png",
+      "reference_a": "images/Test/000058_x10145_y39072_0000_ref.png",
+      "reference_b": "images/Test/000058_x10145_y39072_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000063_x70633_y49777_0000_a.png",
+      "image_b": "images/Test/000063_x70633_y49777_0000_b.png",
+      "reference_a": "images/Test/000063_x70633_y49777_0000_ref.png",
+      "reference_b": "images/Test/000063_x70633_y49777_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000064_x6689_y7424_0000_a.png",
+      "image_b": "images/Test/000064_x6689_y7424_0000_b.png",
+      "reference_a": "images/Test/000064_x6689_y7424_0000_ref.png",
+      "reference_b": "images/Test/000064_x6689_y7424_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000065_x6689_y8448_0000_a.png",
+      "image_b": "images/Test/000065_x6689_y8448_0000_b.png",
+      "reference_a": "images/Test/000065_x6689_y8448_0000_ref.png",
+      "reference_b": "images/Test/000065_x6689_y8448_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000067_x71657_y48753_0000_a.png",
+      "image_b": "images/Test/000067_x71657_y48753_0000_b.png",
+      "reference_a": "images/Test/000067_x71657_y48753_0000_ref.png",
+      "reference_b": "images/Test/000067_x71657_y48753_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000070_x7713_y5376_0000_a.png",
+      "image_b": "images/Test/000070_x7713_y5376_0000_b.png",
+      "reference_a": "images/Test/000070_x7713_y5376_0000_ref.png",
+      "reference_b": "images/Test/000070_x7713_y5376_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000071_x7713_y6400_0000_a.png",
+      "image_b": "images/Test/000071_x7713_y6400_0000_b.png",
+      "reference_a": "images/Test/000071_x7713_y6400_0000_ref.png",
+      "reference_b": "images/Test/000071_x7713_y6400_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000072_x7713_y7424_0000_a.png",
+      "image_b": "images/Test/000072_x7713_y7424_0000_b.png",
+      "reference_a": "images/Test/000072_x7713_y7424_0000_ref.png",
+      "reference_b": "images/Test/000072_x7713_y7424_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000073_x13217_y41120_0000_a.png",
+      "image_b": "images/Test/000073_x13217_y41120_0000_b.png",
+      "reference_a": "images/Test/000073_x13217_y41120_0000_ref.png",
+      "reference_b": "images/Test/000073_x13217_y41120_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000074_x13217_y42144_0000_a.png",
+      "image_b": "images/Test/000074_x13217_y42144_0000_b.png",
+      "reference_a": "images/Test/000074_x13217_y42144_0000_ref.png",
+      "reference_b": "images/Test/000074_x13217_y42144_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000075_x13217_y43168_0000_a.png",
+      "image_b": "images/Test/000075_x13217_y43168_0000_b.png",
+      "reference_a": "images/Test/000075_x13217_y43168_0000_ref.png",
+      "reference_b": "images/Test/000075_x13217_y43168_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000080_x14241_y43168_0000_a.png",
+      "image_b": "images/Test/000080_x14241_y43168_0000_b.png",
+      "reference_a": "images/Test/000080_x14241_y43168_0000_ref.png",
+      "reference_b": "images/Test/000080_x14241_y43168_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000080_x7584_y16389_0000_a.png",
+      "image_b": "images/Test/000080_x7584_y16389_0000_b.png",
+      "reference_a": "images/Test/000080_x7584_y16389_0000_ref.png",
+      "reference_b": "images/Test/000080_x7584_y16389_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000086_x16033_y139640_0000_a.png",
+      "image_b": "images/Test/000086_x16033_y139640_0000_b.png",
+      "reference_a": "images/Test/000086_x16033_y139640_0000_ref.png",
+      "reference_b": "images/Test/000086_x16033_y139640_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000087_x16289_y44192_0000_a.png",
+      "image_b": "images/Test/000087_x16289_y44192_0000_b.png",
+      "reference_a": "images/Test/000087_x16289_y44192_0000_ref.png",
+      "reference_b": "images/Test/000087_x16289_y44192_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000088_x16033_y141688_0000_a.png",
+      "image_b": "images/Test/000088_x16033_y141688_0000_b.png",
+      "reference_a": "images/Test/000088_x16033_y141688_0000_ref.png",
+      "reference_b": "images/Test/000088_x16033_y141688_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000091_x9632_y16389_0000_a.png",
+      "image_b": "images/Test/000091_x9632_y16389_0000_b.png",
+      "reference_a": "images/Test/000091_x9632_y16389_0000_ref.png",
+      "reference_b": "images/Test/000091_x9632_y16389_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000092_x9761_y14592_0000_a.png",
+      "image_b": "images/Test/000092_x9761_y14592_0000_b.png",
+      "reference_a": "images/Test/000092_x9761_y14592_0000_ref.png",
+      "reference_b": "images/Test/000092_x9761_y14592_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000097_x10785_y14592_0000_a.png",
+      "image_b": "images/Test/000097_x10785_y14592_0000_b.png",
+      "reference_a": "images/Test/000097_x10785_y14592_0000_ref.png",
+      "reference_b": "images/Test/000097_x10785_y14592_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000098_x11009_y42288_0000_a.png",
+      "image_b": "images/Test/000098_x11009_y42288_0000_b.png",
+      "reference_a": "images/Test/000098_x11009_y42288_0000_ref.png",
+      "reference_b": "images/Test/000098_x11009_y42288_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000098_x40040_y118816_0000_a.png",
+      "image_b": "images/Test/000098_x40040_y118816_0000_b.png",
+      "reference_a": "images/Test/000098_x40040_y118816_0000_ref.png",
+      "reference_b": "images/Test/000098_x40040_y118816_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000099_x40040_y119840_0000_a.png",
+      "image_b": "images/Test/000099_x40040_y119840_0000_b.png",
+      "reference_a": "images/Test/000099_x40040_y119840_0000_ref.png",
+      "reference_b": "images/Test/000099_x40040_y119840_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000101_x14400_y8352_0000_a.png",
+      "image_b": "images/Test/000101_x14400_y8352_0000_b.png",
+      "reference_a": "images/Test/000101_x14400_y8352_0000_ref.png",
+      "reference_b": "images/Test/000101_x14400_y8352_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000101_x19105_y138616_0000_a.png",
+      "image_b": "images/Test/000101_x19105_y138616_0000_b.png",
+      "reference_a": "images/Test/000101_x19105_y138616_0000_ref.png",
+      "reference_b": "images/Test/000101_x19105_y138616_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000106_x41064_y119840_0000_a.png",
+      "image_b": "images/Test/000106_x41064_y119840_0000_b.png",
+      "reference_a": "images/Test/000106_x41064_y119840_0000_ref.png",
+      "reference_b": "images/Test/000106_x41064_y119840_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000126_x15424_y14496_0000_a.png",
+      "image_b": "images/Test/000126_x15424_y14496_0000_b.png",
+      "reference_a": "images/Test/000126_x15424_y14496_0000_ref.png",
+      "reference_b": "images/Test/000126_x15424_y14496_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000127_x7553_y92800_0000_a.png",
+      "image_b": "images/Test/000127_x7553_y92800_0000_b.png",
+      "reference_a": "images/Test/000127_x7553_y92800_0000_ref.png",
+      "reference_b": "images/Test/000127_x7553_y92800_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000129_x25478_y7424_0000_a.png",
+      "image_b": "images/Test/000129_x25478_y7424_0000_b.png",
+      "reference_a": "images/Test/000129_x25478_y7424_0000_ref.png",
+      "reference_b": "images/Test/000129_x25478_y7424_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000130_x25510_y117888_0000_a.png",
+      "image_b": "images/Test/000130_x25510_y117888_0000_b.png",
+      "reference_a": "images/Test/000130_x25510_y117888_0000_ref.png",
+      "reference_b": "images/Test/000130_x25510_y117888_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000133_x7553_y98944_0000_a.png",
+      "image_b": "images/Test/000133_x7553_y98944_0000_b.png",
+      "reference_a": "images/Test/000133_x7553_y98944_0000_ref.png",
+      "reference_b": "images/Test/000133_x7553_y98944_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000134_x7553_y99968_0000_a.png",
+      "image_b": "images/Test/000134_x7553_y99968_0000_b.png",
+      "reference_a": "images/Test/000134_x7553_y99968_0000_ref.png",
+      "reference_b": "images/Test/000134_x7553_y99968_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000135_x7553_y100992_0000_a.png",
+      "image_b": "images/Test/000135_x7553_y100992_0000_b.png",
+      "reference_a": "images/Test/000135_x7553_y100992_0000_ref.png",
+      "reference_b": "images/Test/000135_x7553_y100992_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000142_x8577_y27264_0000_a.png",
+      "image_b": "images/Test/000142_x8577_y27264_0000_b.png",
+      "reference_a": "images/Test/000142_x8577_y27264_0000_ref.png",
+      "reference_b": "images/Test/000142_x8577_y27264_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000142_x9024_y26144_0000_a.png",
+      "image_b": "images/Test/000142_x9024_y26144_0000_b.png",
+      "reference_a": "images/Test/000142_x9024_y26144_0000_ref.png",
+      "reference_b": "images/Test/000142_x9024_y26144_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000149_x8577_y92800_0000_a.png",
+      "image_b": "images/Test/000149_x8577_y92800_0000_b.png",
+      "reference_a": "images/Test/000149_x8577_y92800_0000_ref.png",
+      "reference_b": "images/Test/000149_x8577_y92800_0000_ref.png"
+    },
+    {
+      "image_a": "images/Test/000151_x16448_y17568_0000_a.png",
+      "image_b": "images/Test/000151_x16448_y17568_0000_b.png",
+      "reference_a": "images/Test/000151_x16448_y17568_0000_ref.png",
+      "reference_b": "images/Test/000151_x16448_y17568_0000_ref.png"
+    }
+  ]
+}

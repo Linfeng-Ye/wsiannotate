@@ -2,20 +2,113 @@
 {% load static %}
 {% block title %}Home{% endblock %}
 
+{% block extra_head %}
+<style>
+    .staff-tools {
+        display: flex;
+        align-items: center;
+        justify-content: space-between;
+        gap: 18px;
+        margin: 14px 0 4px;
+        padding: 14px 16px;
+        border: 1px solid #c9dce5;
+        border-radius: 8px;
+        background: #eef4f7;
+    }
+    .staff-tools-title {
+        margin: 0 0 2px;
+        color: #24353d;
+        font-size: 15px;
+        font-weight: 700;
+    }
+    .staff-tools-description {
+        margin: 0;
+        color: #52666f;
+        font-size: 13px;
+    }
+    .staff-tools-actions {
+        display: flex;
+        flex: 0 0 auto;
+        gap: 8px;
+    }
+    .staff-tools .staff-action {
+        display: inline-flex;
+        align-items: center;
+        justify-content: center;
+        min-height: 44px;
+        padding: 10px 15px;
+        border: 1px solid #447e9b;
+        color: #315f76;
+        background: #ffffff;
+        font-weight: 650;
+        line-height: 1.2;
+    }
+    .staff-tools .staff-action:hover {
+        background: #e1edf2;
+        color: #244b5e;
+    }
+    .staff-tools .staff-action:visited {
+        border-color: #447e9b;
+        color: #315f76;
+    }
+    .staff-tools .staff-action-primary,
+    .staff-tools .staff-action-primary:visited {
+        color: #ffffff;
+        background: #447e9b;
+    }
+    .staff-tools .staff-action-primary:hover {
+        color: #ffffff;
+        background: #366a84;
+    }
+    .staff-tools .staff-action:focus-visible {
+        outline: 3px solid rgba(68, 126, 155, 0.3);
+        outline-offset: 2px;
+    }
+    @media (max-width: 620px) {
+        .staff-tools {
+            align-items: stretch;
+            flex-direction: column;
+            gap: 12px;
+        }
+        .staff-tools-actions {
+            display: grid;
+            grid-template-columns: 1fr;
+        }
+        .staff-tools .staff-action {
+            width: 100%;
+        }
+    }
+</style>
+{% endblock %}
+
 {% block content %}
 <div style="max-width:700px;margin:40px auto;">
     <h1>Welcome, {{ user.username }}</h1>
+
+    {% if user.is_staff %}
+    <div class="staff-tools" aria-label="Staff tools">
+        <div>
+            <p class="staff-tools-title">Staff tools</p>
+            <p class="staff-tools-description">Manage annotators and review study data.</p>
+        </div>
+        <div class="staff-tools-actions">
+            <a class="btn staff-action staff-action-primary"
+               href="{% url 'iqa:annotator_progress' %}">Progress &amp; exports</a>
+            <a class="btn staff-action"
+               href="{% url 'iqa:view_responses' %}">View responses</a>
+        </div>
+    </div>
+    {% endif %}
 
     {% if study_cards %}
     <h2 style="margin-top:28px;">Available Studies</h2>
     {% for card in study_cards %}
     {% with study=card.study %}
-    <div class="preload-card"
-         data-cache-name="iqa-study-images-{{ study.id }}-v1"
-         data-manifest-url="{% url 'iqa:preload_manifest' study.id %}"
-         style="border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin-bottom:14px;background:#fff;">
+    {# Hide QC (Qualification) studies from the home page #}
+    {% if study.mode != 'QC' %}
+    <div style="border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin-bottom:14px;background:#fff;">
         <h3 style="margin:0 0 6px;">{{ study.name }}</h3>
-        <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:{% if study.mode == 'MOS' %}#d1ecf1;color:#0c5460{% else %}#e2d9f3;color:#563d7c{% endif %};">
+        <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:{% if study.mode == 'MOS' %}#d1ecf1;color:#0c5460{% elif study.mode == 'QC' %}#d8ecd4;color:#2c5f26{% else %}#e2d9f3;color:#563d7c{% endif %};">
             {{ study.get_mode_display }}
         </span>
         <span style="display:inline-block;margin-left:8px;color:#555;font-size:13px;">
@@ -25,6 +118,28 @@
         <p style="margin:10px 0 0;color:#555;font-size:14px;">{{ study.prompt }}</p>
         {% endif %}
         <div style="margin-top:12px;display:flex;gap:8px;flex-wrap:wrap;align-items:center;">
+            {# Local-first studies link straight to the browser-driven runner. #}
+            {% if study.mode == 'QC' or study.mode == '2AFC' and study.use_local_mode %}
+            {% comment %}
+            A finished study stays open: the runner lands on the last trial so
+            answers can be reviewed and revised, rather than dead-ending on a
+            disabled button.
+            {% endcomment %}
+            <a class="btn{% if not card.is_completed %} btn-primary{% endif %}"
+               {% if card.is_completed %}style="border:1px solid #447e9b;color:#315f76;background:#fff;"{% endif %}
+               href="{% url 'iqa:local_run' study.id %}">
+                {% if card.is_completed %}
+                Review Answers
+                {% elif card.is_started %}
+                Continue Evaluation
+                {% else %}
+                Start Evaluation
+                {% endif %}
+            </a>
+            {% if card.is_completed %}
+            <span style="color:#2c7a3f;font-size:13px;font-weight:600;">&check; Completed</span>
+            {% endif %}
+            {% else %}
             <form action="{% url 'iqa:next_stimulus' %}" method="post">
                 {% csrf_token %}
                 <input type="hidden" name="study_id" value="{{ study.id }}">
@@ -38,32 +153,13 @@
                     {% endif %}
                 </button>
             </form>
-            <a href="{% url 'iqa:local_annotation' study.id %}"
-               class="btn"
-               style="background:#005f73;color:#fff;">
-                Start Low-Latency Local Mode
-            </a>
+            {% endif %}
             {% if study.allow_self_export %}
             <a href="{% url 'iqa:export_own_csv' study.id %}" class="btn" style="background:#28a745;color:#fff;">Export My Responses</a>
             {% endif %}
-            <button type="button"
-                    class="btn"
-                    data-preload-action="preload"
-                    style="background:#17a2b8;color:#fff;">
-                Preload Images
-            </button>
-            <button type="button"
-                    class="btn"
-                    data-preload-action="delete"
-                    style="background:#dc3545;color:#fff;">
-                Delete Saved Images
-            </button>
-            <span class="preload-status"
-                  role="status"
-                  aria-live="polite"
-                  style="font-size:13px;color:#555;">Checking cache...</span>
         </div>
     </div>
+    {% endif %} {# End QC mode filter #}
     {% endwith %}
     {% endfor %}
     {% else %}
@@ -77,8 +173,4 @@
         </form>
     </div>
 </div>
-{% endblock %}
-
-{% block extra_js %}
-<script src="{% static 'iqa/js/preload.js' %}"></script>
 {% endblock %}

@@ -13,9 +13,11 @@ class Image(models.Model):
 class Study(models.Model):
     MODE_MOS = 'MOS'
     MODE_2AFC = '2AFC'
+    MODE_QC = 'QC'
     MODE_CHOICES = [
         (MODE_MOS, 'Mean Opinion Score'),
         (MODE_2AFC, 'Two-Alternative Forced Choice'),
+        (MODE_QC, 'Qualification (Yes/No)'),
     ]
 
     SAMPLER_SEQUENTIAL = 'sequential'
@@ -95,6 +97,17 @@ class Study(models.Model):
                   'references fall back to the classic '
                   'layout.',
     )
+    use_local_mode = models.BooleanField(
+        default=False,
+        help_text='2AFC + shared-reference only: download the '
+                  'whole study to the browser and record answers '
+                  'locally with background sync, so every click is '
+                  'instant even on high-latency networks. The '
+                  'server stays the source of truth via idempotent '
+                  'upserts; unsynced answers resend on reload and '
+                  'on page close. QC studies always run this way, '
+                  'so the flag is ignored for them.',
+    )
 
     class Meta:
         verbose_name_plural = 'studies'
@@ -105,6 +118,8 @@ class Study(models.Model):
     def stimulus_count(self) -> int:
         if self.mode == self.MODE_MOS:
             return self.mos_stimuli.count()
+        if self.mode == self.MODE_QC:
+            return self.qc_stimuli.count()
         return self.pair_stimuli.count()
 
 
@@ -184,6 +199,93 @@ class PairStimulus(models.Model):
         )
 
 
+class QCStimulus(models.Model):
+    """One qualification trial: a candidate image beside its reference.
+
+    The rater answers a single yes/no question -- is this image good enough
+    to train on? -- so there is no second candidate and no A/B swap.
+    """
+
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name='qc_stimuli',
+    )
+    image = models.ForeignKey(
+        Image,
+        on_delete=models.PROTECT,
+        related_name='+',
+    )
+    reference = models.ForeignKey(
+        Image,
+        on_delete=models.PROTECT,
+        null=True,
+        blank=True,
+        related_name='+',
+    )
+    order = models.IntegerField(default=0)
+
+    class Meta:
+        ordering = ['order', 'id']
+        verbose_name = 'QC stimulus'
+        verbose_name_plural = 'QC stimuli'
+
+    def __str__(self) -> str:
+        ref = ''
+        if self.reference:
+            ref = f' (ref: {self.reference})'
+        return f'QC #{self.order}: {self.image}{ref}'
+
+
+class StudyAssignment(models.Model):
+    """Which stimuli a specific rater is assigned within a study.
+
+    When a study has *no* assignments, every rater sees the whole study
+    (backward-compatible). As soon as a study has *any* assignment, it
+    becomes assignment-gated: each rater sees only their assigned stimuli,
+    and a rater with no assignment sees nothing. Assignments may overlap
+    across raters by design.
+
+    2AFC studies assign through ``pair_stimuli`` and QC studies through
+    ``qc_stimuli``; only the field matching the study's mode is consulted.
+    MOS studies are not supported.
+    """
+
+    study = models.ForeignKey(
+        Study,
+        on_delete=models.CASCADE,
+        related_name='assignments',
+    )
+    user = models.ForeignKey(
+        User,
+        on_delete=models.CASCADE,
+        related_name='study_assignments',
+    )
+    pair_stimuli = models.ManyToManyField(
+        PairStimulus,
+        related_name='assignments',
+        blank=True,
+    )
+    qc_stimuli = models.ManyToManyField(
+        QCStimulus,
+        related_name='assignments',
+        blank=True,
+    )
+    created = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['study', 'user']
+
+    def stimuli(self):
+        """The M2M manager holding this assignment's stimuli for its study."""
+        if self.study.mode == Study.MODE_QC:
+            return self.qc_stimuli
+        return self.pair_stimuli
+
+    def __str__(self) -> str:
+        return f'{self.user} @ {self.study}'
+
+
 class MOSResponse(models.Model):
     stimulus = models.ForeignKey(
         MOSStimulus, on_delete=models.PROTECT,
@@ -201,6 +303,48 @@ class MOSResponse(models.Model):
         return (
             f'{self.user}: '
             f'{self.stimulus} = {self.score}'
+        )
+
+
+class QCResponse(models.Model):
+    """One rater's yes/no verdict on a QC stimulus.
+
+    ``shown_image``/``shown_reference`` snapshot the filenames that were on
+    screen, so the record survives a later edit to the stimulus -- the same
+    guarantee ``PairResponse.shown_*`` gives for 2AFC.
+    """
+
+    CHOICE_YES = 'Y'
+    CHOICE_NO = 'N'
+    CHOICE_CHOICES = [
+        (CHOICE_YES, 'Yes -- qualified'),
+        (CHOICE_NO, 'No -- not qualified'),
+    ]
+
+    stimulus = models.ForeignKey(
+        QCStimulus, on_delete=models.PROTECT,
+    )
+    user = models.ForeignKey(
+        User, on_delete=models.PROTECT,
+    )
+    choice = models.CharField(
+        max_length=1, choices=CHOICE_CHOICES,
+    )
+    shown_image = models.CharField(
+        max_length=512, blank=True,
+    )
+    shown_reference = models.CharField(
+        max_length=512, blank=True,
+    )
+    timestamp = models.DateTimeField(auto_now_add=True)
+
+    class Meta:
+        unique_together = ['stimulus', 'user']
+
+    def __str__(self) -> str:
+        return (
+            f'{self.user}: '
+            f'{self.stimulus} = {self.choice}'
         )
 
 

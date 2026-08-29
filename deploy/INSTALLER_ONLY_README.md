@@ -1,5 +1,9 @@
 # Installer-only Ubuntu package
 
+> **Legacy deployment path.** Production now runs on AWS App Runner with S3,
+> CloudFront, and Supabase. See [`../DEPLOY.md`](../DEPLOY.md) for the current
+> workflow. Use this guide only when maintaining the archived Ubuntu setup.
+
 Use this package when the Ubuntu machine already has the full
 `image_subjective_test` project folder.
 
