@@ -104,6 +104,8 @@
     <h2 style="margin-top:28px;">Available Studies</h2>
     {% for card in study_cards %}
     {% with study=card.study %}
+    {# Hide QC (Qualification) studies from the home page #}
+    {% if study.mode != 'QC' %}
     <div style="border:1px solid #ddd;border-radius:8px;padding:16px 20px;margin-bottom:14px;background:#fff;">
         <h3 style="margin:0 0 6px;">{{ study.name }}</h3>
         <span style="display:inline-block;padding:2px 10px;border-radius:12px;font-size:12px;font-weight:600;background:{% if study.mode == 'MOS' %}#d1ecf1;color:#0c5460{% elif study.mode == 'QC' %}#d8ecd4;color:#2c5f26{% else %}#e2d9f3;color:#563d7c{% endif %};">
@@ -157,6 +159,7 @@
             {% endif %}
         </div>
     </div>
+    {% endif %} {# End QC mode filter #}
     {% endwith %}
     {% endfor %}
     {% else %}

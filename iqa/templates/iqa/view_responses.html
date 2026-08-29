@@ -12,9 +12,12 @@
     <select name="study_id" id="study_id" style="padding:6px 10px;border-radius:6px;border:1px solid #ccc;">
         <option value="">-- select --</option>
         {% for s in studies %}
+        {# Hide QC (Qualification) studies from the dropdown #}
+        {% if s.mode != 'QC' %}
         <option value="{{ s.id }}"{% if study and study.id == s.id %} selected{% endif %}>
             {{ s.name }} ({{ s.mode }})
         </option>
+        {% endif %}
         {% endfor %}
     </select>
     <label for="user_id" style="margin-left:12px;"><strong>Annotator:</strong></label>
